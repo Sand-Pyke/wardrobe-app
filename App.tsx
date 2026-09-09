@@ -2,7 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import Sortable from "react-native-sortables";
 import {
   Alert,
   FlatList,
@@ -10,7 +17,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -110,41 +116,47 @@ export default function App() {
 
   if (detail) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="dark" />
-        <DetailScreen
-          detail={detail}
-          items={items}
-          outfits={outfits}
-          onBack={() => setDetail(null)}
-          onAdd={openAdd}
-          onDeleteItems={deleteItems}
-          onDeleteOutfits={deleteOutfits}
-          onOpenOutfit={(outfit) => {
-            setDetail(null);
-            setEditingOutfit(outfit);
-            setTab("style");
-          }}
-          onReorderItems={persistItems}
-          onReorderOutfits={persistOutfits}
-        />
-        <AddClothingModal
-          visible={addCategory !== null}
-          initialCategory={addCategory ?? "top"}
-          onClose={() => setAddCategory(null)}
-          onSave={async (c, u) => {
-            await addItems(c, u);
-            setAddCategory(null);
-          }}
-        />
-      </SafeAreaView>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+            <StatusBar style="dark" />
+            <DetailScreen
+              detail={detail}
+              items={items}
+              outfits={outfits}
+              onBack={() => setDetail(null)}
+              onAdd={openAdd}
+              onDeleteItems={deleteItems}
+              onDeleteOutfits={deleteOutfits}
+              onOpenOutfit={(outfit) => {
+                setDetail(null);
+                setEditingOutfit(outfit);
+                setTab("style");
+              }}
+              onReorderItems={persistItems}
+              onReorderOutfits={persistOutfits}
+            />
+            <AddClothingModal
+              visible={addCategory !== null}
+              initialCategory={addCategory ?? "top"}
+              onClose={() => setAddCategory(null)}
+              onSave={async (c, u) => {
+                await addItems(c, u);
+                setAddCategory(null);
+              }}
+            />
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
-      <View style={styles.page}>
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+          <StatusBar style="dark" />
+          <View style={styles.page}>
         {tab === "home" && (
           <Home
             items={items}
@@ -176,24 +188,26 @@ export default function App() {
             onStyle={() => setTab("style")}
           />
         )}
-      </View>
-      <BottomTabs
-        active={tab}
-        onChange={(next) => {
-          setEditingOutfit(null);
-          setTab(next);
-        }}
-      />
-      <AddClothingModal
-        visible={addCategory !== null}
-        initialCategory={addCategory ?? "top"}
-        onClose={() => setAddCategory(null)}
-        onSave={async (c, u) => {
-          await addItems(c, u);
-          setAddCategory(null);
-        }}
-      />
-    </SafeAreaView>
+          </View>
+          <BottomTabs
+            active={tab}
+            onChange={(next) => {
+              setEditingOutfit(null);
+              setTab(next);
+            }}
+          />
+          <AddClothingModal
+            visible={addCategory !== null}
+            initialCategory={addCategory ?? "top"}
+            onClose={() => setAddCategory(null)}
+            onSave={async (c, u) => {
+              await addItems(c, u);
+              setAddCategory(null);
+            }}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -265,7 +279,6 @@ function Home({
                     source={{ uri: item.imageUris[0] }}
                     style={styles.itemImage}
                   />
-                  <Text style={styles.itemLabel}>{group.label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -581,35 +594,37 @@ function DetailScreen({
   ).sort((a, b) => a.sortOrder - b.sortOrder);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [moving, setMoving] = useState<string | null>(null);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+
   function tap(entry: ClothingItem | Outfit) {
-    if (moving) {
-      const from = entries.findIndex((x) => x.id === moving);
-      const to = entries.findIndex((x) => x.id === entry.id);
-      const next = [...entries];
-      next.splice(to, 0, next.splice(from, 1)[0]);
-      const ordered = next.map((x, index) => ({ ...x, sortOrder: index }));
-      isClothing
-        ? void onReorderItems(
-            items.map(
-              (x) => ordered.find((y) => y.id === x.id) ?? x,
-            ) as ClothingItem[],
-          )
-        : void onReorderOutfits(
-            outfits.map(
-              (x) => ordered.find((y) => y.id === x.id) ?? x,
-            ) as Outfit[],
-          );
-      setMoving(null);
-      return;
-    }
     if (selecting)
       setSelected((prev) =>
         prev.includes(entry.id)
           ? prev.filter((x) => x !== entry.id)
           : [...prev, entry.id],
       );
-    else if (!isClothing) onOpenOutfit(entry as Outfit);
+    else if (isClothing) setPreviewUri((entry as ClothingItem).imageUris[0]);
+    else onOpenOutfit(entry as Outfit);
+  }
+  function persistOrder(orderedEntries: Array<ClothingItem | Outfit>) {
+    const ordered = orderedEntries.map((entry, index) => ({
+      ...entry,
+      sortOrder: index,
+    }));
+    if (isClothing) {
+      void onReorderItems(
+        items.map(
+          (item) => ordered.find((entry) => entry.id === item.id) ?? item,
+        ) as ClothingItem[],
+      );
+    } else {
+      void onReorderOutfits(
+        outfits.map(
+          (outfit) =>
+            ordered.find((entry) => entry.id === outfit.id) ?? outfit,
+        ) as Outfit[],
+      );
+    }
   }
   async function remove() {
     if (!selected.length) return;
@@ -659,65 +674,108 @@ function DetailScreen({
           </Pressable>
         </View>
       )}
-      <Text style={styles.dragHelp}>
-        {moving
-          ? "点按目标位置以完成移动"
-          : "长按任意卡片后，点按另一张卡片调整顺序"}
-      </Text>
-      <FlatList<ClothingItem | Outfit>
-        contentContainerStyle={styles.grid}
-        data={entries}
-        numColumns={3}
-        keyExtractor={(entry) => entry.id}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => tap(item)}
-            onLongPress={() => !selecting && setMoving(item.id)}
-            style={[
-              styles.gridCard,
-              selected.includes(item.id) && styles.selectedCard,
-              moving === item.id && styles.movingCard,
-            ]}
-          >
-            {isClothing ? (
-              <Image
-                source={{ uri: (item as ClothingItem).imageUris[0] }}
-                style={styles.gridImage}
-              />
-            ) : (
-              <OutfitThumb outfit={item as Outfit} />
+      {entries.length === 0 ? (
+        <Empty
+          icon="images-outline"
+          title="这里还没有内容"
+          body="从下方加号开始添加吧"
+          action="添加"
+          onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
+        />
+      ) : selecting ? (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <View style={styles.selectionGrid}>
+            {entries.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => tap(item)}
+                style={[
+                  styles.gridCard,
+                  selected.includes(item.id) && styles.selectedCard,
+                ]}
+              >
+                {isClothing ? (
+                  <Image
+                    source={{ uri: (item as ClothingItem).imageUris[0] }}
+                    style={styles.gridImage}
+                  />
+                ) : (
+                  <OutfitThumb outfit={item as Outfit} />
+                )}
+                <View style={styles.check}>
+                  <Ionicons
+                    name={
+                      selected.includes(item.id)
+                        ? "checkmark-circle"
+                        : "ellipse-outline"
+                    }
+                    size={22}
+                    color="#fff"
+                  />
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <Sortable.Grid<ClothingItem | Outfit>
+            columns={3}
+            data={entries}
+            keyExtractor={(entry) => entry.id}
+            strategy="insert"
+            rowGap={10}
+            columnGap={10}
+            dragActivationDelay={320}
+            activationAnimationDuration={160}
+            dropAnimationDuration={220}
+            activeItemScale={1.09}
+            activeItemShadowOpacity={0.28}
+            inactiveItemScale={0.98}
+            itemsLayoutTransitionMode="all"
+            onDragEnd={({ data }) => persistOrder(data)}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => tap(item)}
+                style={styles.sortableGridCard}
+              >
+                {isClothing ? (
+                  <Image
+                    source={{ uri: (item as ClothingItem).imageUris[0] }}
+                    style={styles.gridImage}
+                  />
+                ) : (
+                  <OutfitThumb outfit={item as Outfit} />
+                )}
+              </Pressable>
             )}
-            {selecting && (
-              <View style={styles.check}>
-                <Ionicons
-                  name={
-                    selected.includes(item.id)
-                      ? "checkmark-circle"
-                      : "ellipse-outline"
-                  }
-                  size={22}
-                  color="#fff"
-                />
-              </View>
-            )}
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          <Empty
-            icon="images-outline"
-            title="这里还没有内容"
-            body="从下方加号开始添加吧"
-            action="添加"
-            onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
           />
-        }
-      />
+        </ScrollView>
+      )}
       <Pressable
         style={styles.floatingAdd}
         onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
       >
         <Ionicons name="add" size={28} color="#fff" />
       </Pressable>
+      <Modal visible={Boolean(previewUri)} transparent animationType="fade">
+        <View style={styles.previewModal}>
+          <Pressable
+            style={styles.previewClose}
+            onPress={() => setPreviewUri(null)}
+            accessibilityLabel="关闭图片预览"
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </Pressable>
+          {previewUri && (
+            <Image
+              source={{ uri: previewUri }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1045,6 +1103,7 @@ function SourceButton({
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: { flex: 1 },
   safe: { flex: 1, backgroundColor: "#fffaf7" },
   page: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 30 },
@@ -1128,10 +1187,15 @@ const styles = StyleSheet.create({
   tabbar: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    borderTopColor: "#f0e7e3",
     borderTopWidth: 1,
-    paddingTop: 9,
-    paddingBottom: Platform.OS === "ios" ? 18 : 10,
+    borderTopColor: "#eee3df",
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 20 : 14,
+    shadowColor: "#5f4139",
+    shadowOpacity: 0.05,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 5,
   },
   tab: { flex: 1, alignItems: "center", gap: 3 },
   tabText: { fontSize: 11, color: "#9b918e" },
@@ -1281,14 +1345,10 @@ const styles = StyleSheet.create({
     color: "#5b4f4b",
   },
   deleteText: { color: "#b13e31", fontWeight: "800" },
-  dragHelp: {
-    color: "#938681",
-    fontSize: 12,
-    marginHorizontal: 20,
-    marginBottom: 10,
-  },
   grid: { paddingHorizontal: 15, paddingBottom: 90 },
+  selectionGrid: { flexDirection: "row", flexWrap: "wrap" },
   gridCard: { width: "33.333%", padding: 5, position: "relative" },
+  sortableGridCard: { width: "100%", aspectRatio: 1, position: "relative" },
   gridImage: {
     width: "100%",
     aspectRatio: 1,
@@ -1296,7 +1356,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#eee4df",
   },
   selectedCard: { opacity: 0.64 },
-  movingCard: { transform: [{ scale: 0.91 }], opacity: 0.55 },
   check: {
     position: "absolute",
     right: 10,
@@ -1316,6 +1375,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 4,
+  },
+  previewModal: {
+    flex: 1,
+    backgroundColor: "rgba(20, 16, 15, 0.94)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 22,
+  },
+  previewImage: { width: "100%", height: "82%" },
+  previewClose: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : 26,
+    right: 22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
   },
   modalShade: {
     flex: 1,

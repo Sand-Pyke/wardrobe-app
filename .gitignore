@@ -2,6 +2,10 @@ node_modules/
 .expo/
 .expo-validation/
 .expo-validation-sdk57/
+.expo-ui-validation/
+.expo-drag-validation/
+.expo-worklet-validation/
+.expo-safe-area-validation/
 work-export/
 server/dist/
 server/.env
