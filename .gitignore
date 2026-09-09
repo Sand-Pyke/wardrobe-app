@@ -1,6 +1,7 @@
 node_modules/
 .expo/
 .expo-validation/
+.expo-validation-sdk57/
 work-export/
 server/dist/
 server/.env
