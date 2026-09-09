@@ -2,6 +2,7 @@
   "expo": {
     "name": "阿雪的衣柜",
     "slug": "axue-wardrobe",
+    "icon": "./assets/app-icon.png",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -26,6 +27,7 @@
     ],
     "android": {
       "package": "com.axue.wardrobe",
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]

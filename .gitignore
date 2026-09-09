@@ -9,3 +9,4 @@ node_modules/
 work-export/
 server/dist/
 server/.env
+android/

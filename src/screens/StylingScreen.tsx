@@ -1,6 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
-import { Alert, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { ClothingCategory, CLOTHING_CATEGORIES, DEFAULT_OUTFIT_CATEGORIES, OutfitPart, PART_ALLOWED, PART_LABELS } from "../constants";
 import { ClothingItem, Outfit } from "../types";
 import { styles } from "../styles";
@@ -29,6 +41,7 @@ export function Styling({
   const [category, setCategory] = useState(editing?.category ?? "春夏");
   const [custom, setCustom] = useState("");
   const [chooser, setChooser] = useState<OutfitPart | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     setParts(editing?.parts ?? {});
     setCategory(editing?.category ?? "春夏");
@@ -49,7 +62,15 @@ export function Styling({
   const valid = Boolean(parts.torso && (isDress || parts.legs));
   const selectedCategory = custom.trim() || category;
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoiding}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[styles.scroll, styles.stylingScroll]}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.topline}>
         <View>
           <Text style={styles.eyebrow}>
@@ -90,6 +111,12 @@ export function Styling({
         placeholder="例如：通勤、约会、旅行"
         value={custom}
         onChangeText={setCustom}
+        onFocus={() => {
+          setTimeout(
+            () => scrollRef.current?.scrollToEnd({ animated: true }),
+            150,
+          );
+        }}
         maxLength={16}
       />
       <Pressable
@@ -124,7 +151,8 @@ export function Styling({
         onClose={() => setChooser(null)}
         onPick={choose}
       />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

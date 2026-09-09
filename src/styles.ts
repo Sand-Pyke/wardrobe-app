@@ -4,6 +4,8 @@ export const styles = StyleSheet.create({
   gestureRoot: { flex: 1 },
   safe: { flex: 1, backgroundColor: "#fffaf7" },
   page: { flex: 1 },
+  keyboardAvoiding: { flex: 1 },
+  stylingScroll: { flexGrow: 1 },
   scroll: { padding: 20, paddingBottom: 30 },
   topline: {
     flexDirection: "row",
