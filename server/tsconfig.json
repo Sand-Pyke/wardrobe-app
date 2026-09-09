@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "strict": true, "esModuleInterop": true, "module": "NodeNext", "moduleResolution": "NodeNext", "skipLibCheck": true },
+  "include": ["src"]
+}

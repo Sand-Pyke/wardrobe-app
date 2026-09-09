@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "阿雪的衣柜",
+    "slug": "axue-wardrobe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      ["expo-image-picker", { "photosPermission": "允许阿雪的衣柜访问相册，以添加衣物图片。", "cameraPermission": "允许阿雪的衣柜使用相机，以拍摄衣物图片。" }]
+    ],
+    "android": { "package": "com.axue.wardrobe" },
+    "ios": { "bundleIdentifier": "com.axue.wardrobe" }
+  }
+}
