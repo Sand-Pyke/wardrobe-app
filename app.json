@@ -25,10 +25,22 @@
       ]
     ],
     "android": {
-      "package": "com.axue.wardrobe"
+      "package": "com.axue.wardrobe",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.axue.wardrobe"
+    },
+    "extra": {
+      "expo-status-bar": {
+        "style": "dark",
+        "hidden": false
+      },
+      "eas": {
+        "projectId": "6ec4075f-2c93-443d-8033-13e9768cebea"
+      }
     }
   }
 }
