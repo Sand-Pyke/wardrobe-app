@@ -40,8 +40,20 @@ export function useWardrobeData() {
     category: ClothingCategory,
     imageUris: string[],
   ) {
+    const existingUris = new Set(
+      items.flatMap((item) =>
+        item.imageUris.map((uri) => uri.split("?")[0].toLowerCase()),
+      ),
+    );
+    const uniqueUris = imageUris.filter((uri) => {
+      const key = uri.split("?")[0].toLowerCase();
+      if (existingUris.has(key)) return false;
+      existingUris.add(key);
+      return true;
+    });
+    if (!uniqueUris.length) return;
     const existing = items.filter((item) => item.category === category).length;
-    const additions = imageUris.map(
+    const additions = uniqueUris.map(
       (uri, index): ClothingItem => ({
         id: createId(),
         category,

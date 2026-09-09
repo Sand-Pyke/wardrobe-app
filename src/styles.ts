@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   gestureRoot: { flex: 1 },
@@ -41,6 +41,7 @@ export const styles = StyleSheet.create({
   tip: { fontSize: 12, color: "#967f78", marginTop: 3 },
   more: { fontSize: 13, color: "#b8604e", fontWeight: "700" },
   row: { flexDirection: "row", gap: 10 },
+  collectionSelectionGrid: { flexWrap: "wrap" },
   itemCard: { width: "31.9%" },
   itemImage: {
     width: "100%",
@@ -208,16 +209,7 @@ export const styles = StyleSheet.create({
   disabled: { opacity: 0.42 },
   primaryText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   cancelText: { color: "#b8604e", fontWeight: "700" },
-  outfitCard: { width: "31.9%" },
-  outfitThumb: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 15,
-    backgroundColor: "#f4e9e4",
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  outfitCard: { width: "31.9%", position: "relative" },
   detailHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -241,6 +233,12 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
     color: "#5b4f4b",
   },
+  selectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+  },
+  selectAllText: { color: "#9e5848", fontWeight: "700" },
   deleteText: { color: "#b13e31", fontWeight: "800" },
   grid: { paddingHorizontal: 15, paddingBottom: 90 },
   selectionGrid: { flexDirection: "row", flexWrap: "wrap" },
@@ -272,26 +270,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 4,
-  },
-  previewModal: {
-    flex: 1,
-    backgroundColor: "rgba(20, 16, 15, 0.94)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 22,
-  },
-  previewImage: { width: "100%", height: "82%" },
-  previewClose: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 58 : 26,
-    right: 22,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
   },
   modalShade: {
     flex: 1,
@@ -402,4 +380,3 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-

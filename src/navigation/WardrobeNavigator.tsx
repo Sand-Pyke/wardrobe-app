@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AddClothingModal } from "../components/AddClothingModal";
 import { BottomTabs } from "../components/BottomTabs";
@@ -54,6 +54,7 @@ export function WardrobeNavigator() {
         <AddClothingModal
           visible={addCategory !== null}
           initialCategory={addCategory ?? "top"}
+          existingImageUris={wardrobe.items.flatMap((item) => item.imageUris)}
           onClose={() => setAddCategory(null)}
           onSave={async (category, uris) => {
             await wardrobe.addItems(category, uris);
@@ -83,9 +84,16 @@ export function WardrobeNavigator() {
             editing={editingOutfit}
             onCancelEdit={() => setEditingOutfit(null)}
             onSave={async (outfit, isNewCategory) => {
+              const wasEditing = editingOutfit !== null;
               await wardrobe.saveOutfit(outfit, isNewCategory);
               setEditingOutfit(null);
               setTab("collection");
+              Alert.alert(
+                wasEditing ? "修改成功" : "保存成功",
+                wasEditing
+                  ? "穿搭记录已经更新。"
+                  : "这套穿搭已经加入收藏。",
+              );
             }}
           />
         )}
@@ -101,6 +109,7 @@ export function WardrobeNavigator() {
               setTab("style");
             }}
             onStyle={() => setTab("style")}
+            onDeleteOutfits={wardrobe.deleteOutfits}
           />
         )}
       </View>
@@ -114,6 +123,7 @@ export function WardrobeNavigator() {
       <AddClothingModal
         visible={addCategory !== null}
         initialCategory={addCategory ?? "top"}
+        existingImageUris={wardrobe.items.flatMap((item) => item.imageUris)}
         onClose={() => setAddCategory(null)}
         onSave={async (category, uris) => {
           await wardrobe.addItems(category, uris);

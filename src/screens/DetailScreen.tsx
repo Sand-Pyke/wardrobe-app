@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
 import Sortable from "react-native-sortables";
 import { ClothingCategory, CLOTHING_CATEGORIES } from "../constants";
 import { ClothingItem, Outfit } from "../types";
@@ -8,6 +8,8 @@ import { Empty } from "../components/Empty";
 import { OutfitThumb } from "../components/OutfitThumb";
 import { styles } from "../styles";
 import { DetailRoute } from "../navigation/types";
+import { OutfitPreviewModal } from "../components/OutfitPreviewModal";
+import { ZoomableImageModal } from "../components/ZoomableImageModal";
 
 const nameOf = (value: ClothingCategory) =>
   CLOTHING_CATEGORIES.find((entry) => entry.value === value)?.label ?? value;
@@ -44,6 +46,9 @@ export function DetailScreen({
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewOutfit, setPreviewOutfit] = useState<Outfit | null>(null);
+  const allSelected =
+    entries.length > 0 && selected.length === entries.length;
 
   function tap(entry: ClothingItem | Outfit) {
     if (selecting)
@@ -53,7 +58,7 @@ export function DetailScreen({
           : [...prev, entry.id],
       );
     else if (isClothing) setPreviewUri((entry as ClothingItem).imageUris[0]);
-    else onOpenOutfit(entry as Outfit);
+    else setPreviewOutfit(entry as Outfit);
   }
   function persistOrder(orderedEntries: Array<ClothingItem | Outfit>) {
     const ordered = orderedEntries.map((entry, index) => ({
@@ -75,13 +80,31 @@ export function DetailScreen({
       );
     }
   }
-  async function remove() {
-    if (!selected.length) return;
-    isClothing
-      ? await onDeleteItems(selected)
-      : await onDeleteOutfits(selected);
-    setSelected([]);
-    setSelecting(false);
+  function requestRemove() {
+    if (!selected.length) {
+      Alert.alert("还没有选择", "请先选择要删除的项目。");
+      return;
+    }
+    Alert.alert(
+      isClothing ? "删除衣物图片？" : "删除穿搭？",
+      `确定删除已选择的 ${selected.length} 项吗？此操作无法撤销。`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "删除",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              if (isClothing) await onDeleteItems(selected);
+              else await onDeleteOutfits(selected);
+              setSelected([]);
+              setSelecting(false);
+              Alert.alert("删除成功");
+            })();
+          },
+        },
+      ],
+    );
   }
   const title = isClothing ? nameOf(detail.category) : detail.category;
   return (
@@ -118,17 +141,28 @@ export function DetailScreen({
               ? `已选择 ${selected.length} 项`
               : "选择要删除的项目"}
           </Text>
-          <Pressable onPress={() => void remove()}>
-            <Text style={styles.deleteText}>删除</Text>
-          </Pressable>
+          <View style={styles.selectionActions}>
+            <Pressable
+              onPress={() =>
+                setSelected(allSelected ? [] : entries.map((item) => item.id))
+              }
+            >
+              <Text style={styles.selectAllText}>
+                {allSelected ? "取消全选" : "全选"}
+              </Text>
+            </Pressable>
+            <Pressable onPress={requestRemove}>
+              <Text style={styles.deleteText}>删除</Text>
+            </Pressable>
+          </View>
         </View>
       )}
       {entries.length === 0 ? (
         <Empty
           icon="images-outline"
           title="这里还没有内容"
-          body="从下方加号开始添加吧"
-          action="添加"
+          body={isClothing ? "从下方加号开始添加吧" : "这个分类还没有穿搭"}
+          action={isClothing ? "添加" : "返回"}
           onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
         />
       ) : selecting ? (
@@ -166,6 +200,27 @@ export function DetailScreen({
             ))}
           </View>
         </ScrollView>
+      ) : entries.length === 1 ? (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <View style={styles.selectionGrid}>
+            <Pressable
+              onPress={() => tap(entries[0])}
+              onLongPress={() =>
+                !isClothing && onOpenOutfit(entries[0] as Outfit)
+              }
+              style={styles.gridCard}
+            >
+              {isClothing ? (
+                <Image
+                  source={{ uri: (entries[0] as ClothingItem).imageUris[0] }}
+                  style={styles.gridImage}
+                />
+              ) : (
+                <OutfitThumb outfit={entries[0] as Outfit} />
+              )}
+            </Pressable>
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.grid}>
           <Sortable.Grid<ClothingItem | Outfit>
@@ -201,31 +256,22 @@ export function DetailScreen({
           />
         </ScrollView>
       )}
-      <Pressable
-        style={styles.floatingAdd}
-        onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </Pressable>
-      <Modal visible={Boolean(previewUri)} transparent animationType="fade">
-        <View style={styles.previewModal}>
-          <Pressable
-            style={styles.previewClose}
-            onPress={() => setPreviewUri(null)}
-            accessibilityLabel="关闭图片预览"
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </Pressable>
-          {previewUri && (
-            <Image
-              source={{ uri: previewUri }}
-              style={styles.previewImage}
-              resizeMode="contain"
-            />
-          )}
-        </View>
-      </Modal>
+      {isClothing && (
+        <Pressable
+          style={styles.floatingAdd}
+          onPress={() => onAdd(detail.category)}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </Pressable>
+      )}
+      <ZoomableImageModal
+        uri={previewUri}
+        onClose={() => setPreviewUri(null)}
+      />
+      <OutfitPreviewModal
+        outfit={previewOutfit}
+        onClose={() => setPreviewOutfit(null)}
+      />
     </View>
   );
 }
-

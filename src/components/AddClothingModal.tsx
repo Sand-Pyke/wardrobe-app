@@ -10,11 +10,13 @@ import { Chip } from "./Chip";
 export function AddClothingModal({
   visible,
   initialCategory,
+  existingImageUris,
   onClose,
   onSave,
 }: {
   visible: boolean;
   initialCategory: ClothingCategory;
+  existingImageUris: string[];
   onClose: () => void;
   onSave: (c: ClothingCategory, images: string[]) => Promise<void>;
 }) {
@@ -26,6 +28,41 @@ export function AddClothingModal({
       setImages([]);
     }
   }, [visible, initialCategory]);
+
+  function imageKey(uri: string) {
+    try {
+      return decodeURIComponent(uri.split("?")[0]).toLowerCase();
+    } catch {
+      return uri.split("?")[0].toLowerCase();
+    }
+  }
+
+  function appendImages(nextUris: string[]) {
+    const known = new Set(
+      [...existingImageUris, ...images].map((uri) => imageKey(uri)),
+    );
+    const unique: string[] = [];
+    let duplicateCount = 0;
+    for (const uri of nextUris) {
+      const key = imageKey(uri);
+      if (known.has(key)) {
+        duplicateCount += 1;
+      } else {
+        known.add(key);
+        unique.push(uri);
+      }
+    }
+    if (unique.length) setImages((previous) => [...previous, ...unique]);
+    if (duplicateCount) {
+      Alert.alert(
+        "图片已存在",
+        duplicateCount === 1
+          ? "这张图片已经添加过了。"
+          : `有 ${duplicateCount} 张图片已经添加过，本次已自动跳过。`,
+      );
+    }
+  }
+
   async function pick(source: "library" | "camera" | "files") {
     try {
       if (source === "files") {
@@ -35,10 +72,7 @@ export function AddClothingModal({
           copyToCacheDirectory: true,
         });
         if (!result.canceled)
-          setImages((prev) => [
-            ...prev,
-            ...result.assets.map((asset) => asset.uri),
-          ]);
+          appendImages(result.assets.map((asset) => asset.uri));
         return;
       }
       if (source === "camera") {
@@ -49,8 +83,7 @@ export function AddClothingModal({
           mediaTypes: ["images"],
           quality: 0.8,
         });
-        if (!result.canceled)
-          setImages((prev) => [...prev, result.assets[0].uri]);
+        if (!result.canceled) appendImages([result.assets[0].uri]);
         return;
       }
       const permission =
@@ -64,10 +97,7 @@ export function AddClothingModal({
         quality: 0.8,
       });
       if (!result.canceled)
-        setImages((prev) => [
-          ...prev,
-          ...result.assets.map((asset) => asset.uri),
-        ]);
+        appendImages(result.assets.map((asset) => asset.uri));
     } catch {
       Alert.alert("选择图片失败", "请稍后重试。");
     }
@@ -178,4 +208,3 @@ function SourceButton({
     </Pressable>
   );
 }
-
