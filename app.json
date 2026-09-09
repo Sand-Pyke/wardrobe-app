@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#fffaf7",
     "plugins": [
       [
         "expo-image-picker",
@@ -14,7 +15,14 @@
         }
       ],
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-status-bar",
+        {
+          "style": "dark",
+          "hidden": false
+        }
+      ]
     ],
     "android": {
       "package": "com.axue.wardrobe"

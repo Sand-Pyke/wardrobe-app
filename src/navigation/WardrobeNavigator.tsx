@@ -1,6 +1,5 @@
-import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert, StatusBar, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AddClothingModal } from "../components/AddClothingModal";
 import { BottomTabs } from "../components/BottomTabs";
@@ -34,7 +33,11 @@ export function WardrobeNavigator() {
   if (detail) {
     return (
       <View style={[styles.safe, safeFrame]}>
-        <StatusBar style="dark" />
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#fffaf7"
+          translucent
+        />
         <DetailScreen
           detail={detail}
           items={wardrobe.items}
@@ -67,7 +70,11 @@ export function WardrobeNavigator() {
 
   return (
     <View style={[styles.safe, safeFrame]}>
-      <StatusBar style="dark" />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#fffaf7"
+        translucent
+      />
       <View style={styles.page}>
         {tab === "home" && (
           <Home
