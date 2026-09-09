@@ -1,5 +1,6 @@
 node_modules/
 .expo/
+.expo-validation/
 work-export/
 server/dist/
 server/.env
