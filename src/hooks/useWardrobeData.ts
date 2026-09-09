@@ -1,0 +1,92 @@
+import { useEffect, useState } from "react";
+import { ClothingCategory, DEFAULT_OUTFIT_CATEGORIES } from "../constants";
+import { repository } from "../data/storage";
+import { ClothingItem, Outfit } from "../types";
+
+const createId = () =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+export function useWardrobeData() {
+  const [items, setItems] = useState<ClothingItem[]>([]);
+  const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function load() {
+    const [loadedItems, loadedOutfits, loadedCategories] = await Promise.all([
+      repository.getItems(),
+      repository.getOutfits(),
+      repository.getOutfitCategories(),
+    ]);
+    setItems(loadedItems);
+    setOutfits(loadedOutfits);
+    setCustomCategories(loadedCategories);
+  }
+
+  async function persistItems(next: ClothingItem[]) {
+    setItems(next);
+    await repository.saveItems(next);
+  }
+
+  async function persistOutfits(next: Outfit[]) {
+    setOutfits(next);
+    await repository.saveOutfits(next);
+  }
+
+  async function addItems(
+    category: ClothingCategory,
+    imageUris: string[],
+  ) {
+    const existing = items.filter((item) => item.category === category).length;
+    const additions = imageUris.map(
+      (uri, index): ClothingItem => ({
+        id: createId(),
+        category,
+        imageUris: [uri],
+        createdAt: new Date().toISOString(),
+        sortOrder: existing + index,
+      }),
+    );
+    await persistItems([...items, ...additions]);
+  }
+
+  async function deleteItems(ids: string[]) {
+    await persistItems(items.filter((item) => !ids.includes(item.id)));
+  }
+
+  async function deleteOutfits(ids: string[]) {
+    await persistOutfits(outfits.filter((outfit) => !ids.includes(outfit.id)));
+  }
+
+  async function saveOutfit(outfit: Outfit, isNewCategory: boolean) {
+    const next = outfits.some((entry) => entry.id === outfit.id)
+      ? outfits.map((entry) => (entry.id === outfit.id ? outfit : entry))
+      : [outfit, ...outfits];
+    await persistOutfits(next);
+
+    if (
+      isNewCategory &&
+      !DEFAULT_OUTFIT_CATEGORIES.includes(outfit.category as never) &&
+      !customCategories.includes(outfit.category)
+    ) {
+      const categories = [...customCategories, outfit.category];
+      setCustomCategories(categories);
+      await repository.saveOutfitCategories(categories);
+    }
+  }
+
+  return {
+    items,
+    outfits,
+    customCategories,
+    addItems,
+    deleteItems,
+    deleteOutfits,
+    persistItems,
+    persistOutfits,
+    saveOutfit,
+  };
+}
