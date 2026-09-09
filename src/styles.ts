@@ -5,7 +5,7 @@ export const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fffaf7" },
   page: { flex: 1 },
   keyboardAvoiding: { flex: 1 },
-  stylingScroll: { flexGrow: 1 },
+  stylingScroll: { flexGrow: 1, paddingBottom: 130 },
   scroll: { padding: 20, paddingBottom: 30 },
   topline: {
     flexDirection: "row",

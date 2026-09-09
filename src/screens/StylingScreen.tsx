@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -47,6 +48,13 @@ export function Styling({
     setCategory(editing?.category ?? "春夏");
     setCustom("");
   }, [editing]);
+  useEffect(() => {
+    const subscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })),
+    );
+    return () => subscription.remove();
+  }, []);
   const isDress = parts.torso?.category === "dress";
   function choose(item: ClothingItem) {
     if (chooser)
@@ -114,7 +122,7 @@ export function Styling({
         onFocus={() => {
           setTimeout(
             () => scrollRef.current?.scrollToEnd({ animated: true }),
-            150,
+            250,
           );
         }}
         maxLength={16}
