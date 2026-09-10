@@ -87,45 +87,55 @@ export function Collection({
           <Text style={styles.title}>穿搭收藏</Text>
         </View>
 
-        <Pressable
-          accessibilityLabel={selecting ? "退出管理" : "管理穿搭"}
-          style={styles.roundAdd}
-          onPress={() => {
-            setSelecting((value) => !value);
-            setSelected([]);
-          }}
-        >
-          <Ionicons
-            name={selecting ? "close" : "ellipsis-horizontal"}
-            size={27}
-            color="#fff"
-          />
-        </Pressable>
+        <View style={styles.collectionHeaderActions}>
+          <Pressable
+            style={[
+              styles.selectionHeaderButton,
+              !selecting && styles.hiddenHeaderButton,
+            ]}
+            disabled={!selecting}
+            onPress={() => setSelected(allSelected ? [] : visibleIds)}
+            accessibilityRole="button"
+            accessibilityLabel={allSelected ? "取消全选" : "全选"}
+          >
+            <Ionicons
+              name={allSelected ? "checkmark-done" : "checkmark-done-outline"}
+              size={20}
+              color="#9e5848"
+            />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.selectionHeaderButton,
+              styles.deleteHeaderButton,
+              !selecting && styles.hiddenHeaderButton,
+            ]}
+            disabled={!selecting}
+            onPress={requestRemove}
+            accessibilityRole="button"
+            accessibilityLabel="删除所选穿搭"
+          >
+            <Ionicons name="trash-outline" size={19} color="#b13e31" />
+          </Pressable>
+          <Pressable
+            accessibilityLabel={selecting ? "退出管理" : "管理穿搭"}
+            style={styles.roundAdd}
+            onPress={() => {
+              setSelecting((value) => !value);
+              setSelected([]);
+            }}
+          >
+            <Ionicons
+              name={selecting ? "close" : "ellipsis-horizontal"}
+              size={27}
+              color="#fff"
+            />
+          </Pressable>
+        </View>
       </View>
       <Text style={styles.helper}>
         长按穿搭图片,可以修改穿搭
       </Text>
-      {selecting && groups.length > 0 && (
-        <View style={styles.collectionSelectionBar}>
-          <Text>
-            {selected.length
-              ? `已选择 ${selected.length} 项`
-              : "选择要删除的穿搭"}
-          </Text>
-          <View style={styles.selectionActions}>
-            <Pressable
-              onPress={() => setSelected(allSelected ? [] : visibleIds)}
-            >
-              <Text style={styles.selectAllText}>
-                {allSelected ? "取消全选" : "全选"}
-              </Text>
-            </Pressable>
-            <Pressable onPress={requestRemove}>
-              <Text style={styles.deleteText}>删除</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
       {groups.length === 0 ? (
         <Empty
           icon="heart-outline"
@@ -163,16 +173,12 @@ export function Collection({
                     delayLongPress={350}
                   >
                     <OutfitThumb outfit={outfit} />
-                    {selecting && (
-                      <View style={styles.collectionCheck}>
-                        <Ionicons
-                          name={
-                            selected.includes(outfit.id)
-                              ? "checkmark-circle"
-                              : "ellipse-outline"
-                          }
-                          size={22}
-                          color="#fff"
+                  {selecting && selected.includes(outfit.id) && (
+                    <View style={styles.collectionCheck}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color="#fff"
                         />
                       </View>
                     )}

@@ -10,6 +10,7 @@ import { styles } from "../styles";
 import { DetailRoute } from "../navigation/types";
 import { OutfitPreviewModal } from "../components/OutfitPreviewModal";
 import { ZoomableImageModal } from "../components/ZoomableImageModal";
+import { ImageSourcePicker } from "../components/ImageSourcePicker";
 
 const nameOf = (value: ClothingCategory) =>
   CLOTHING_CATEGORIES.find((entry) => entry.value === value)?.label ?? value;
@@ -19,7 +20,7 @@ export function DetailScreen({
   items,
   outfits,
   onBack,
-  onAdd,
+  onAddImages,
   onDeleteItems,
   onDeleteOutfits,
   onOpenOutfit,
@@ -30,7 +31,7 @@ export function DetailScreen({
   items: ClothingItem[];
   outfits: Outfit[];
   onBack: () => void;
-  onAdd: (c?: ClothingCategory) => void;
+  onAddImages: (category: ClothingCategory, uris: string[]) => Promise<void>;
   onDeleteItems: (ids: string[]) => Promise<void>;
   onDeleteOutfits: (ids: string[]) => Promise<void>;
   onOpenOutfit: (o: Outfit) => void;
@@ -47,8 +48,15 @@ export function DetailScreen({
   const [selected, setSelected] = useState<string[]>([]);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [previewOutfit, setPreviewOutfit] = useState<Outfit | null>(null);
+  const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
   const allSelected =
     entries.length > 0 && selected.length === entries.length;
+  const clothingGridEntries = isClothing
+    ? [
+        ...(entries as ClothingItem[]),
+        { id: "add-image", isAddTile: true as const },
+      ]
+    : [];
 
   function tap(entry: ClothingItem | Outfit) {
     if (selecting)
@@ -110,16 +118,51 @@ export function DetailScreen({
   return (
     <View style={styles.page}>
       <View style={styles.detailHeader}>
-        <Pressable onPress={onBack} hitSlop={10}>
-          <Ionicons name="arrow-back" size={25} color="#292423" />
-        </Pressable>
-        <View>
+        <View style={styles.detailHeaderActions}>
+          <Pressable onPress={onBack} hitSlop={10}>
+            <Ionicons name="arrow-back" size={25} color="#292423" />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.selectionHeaderButton,
+              !selecting && styles.hiddenHeaderButton,
+            ]}
+            disabled={!selecting}
+            onPress={() =>
+              setSelected(allSelected ? [] : entries.map((item) => item.id))
+            }
+            accessibilityRole="button"
+            accessibilityLabel={allSelected ? "取消全选" : "全选"}
+          >
+            <Ionicons
+              name={allSelected ? "checkmark-done" : "checkmark-done-outline"}
+              size={20}
+              color="#9e5848"
+            />
+          </Pressable>
+        </View>
+        <View style={styles.detailHeaderTitle}>
           <Text style={styles.eyebrow}>
             {isClothing ? "CLOTHING CATEGORY" : "OUTFIT COLLECTION"}
           </Text>
           <Text style={styles.detailTitle}>{title}</Text>
         </View>
+        <View style={[styles.detailHeaderActions, styles.detailHeaderActionsRight]}>
+          <Pressable
+            style={[
+              styles.selectionHeaderButton,
+              styles.deleteHeaderButton,
+              !selecting && styles.hiddenHeaderButton,
+            ]}
+            disabled={!selecting}
+            onPress={requestRemove}
+            accessibilityRole="button"
+            accessibilityLabel="删除所选项目"
+          >
+            <Ionicons name="trash-outline" size={19} color="#b13e31" />
+          </Pressable>
         <Pressable
+          style={styles.selectionHeaderButton}
           onPress={() => {
             if (selecting) {
               setSelecting(false);
@@ -133,38 +176,71 @@ export function DetailScreen({
             color="#292423"
           />
         </Pressable>
-      </View>
-      {selecting && (
-        <View style={styles.selectionBar}>
-          <Text>
-            {selected.length
-              ? `已选择 ${selected.length} 项`
-              : "选择要删除的项目"}
-          </Text>
-          <View style={styles.selectionActions}>
-            <Pressable
-              onPress={() =>
-                setSelected(allSelected ? [] : entries.map((item) => item.id))
-              }
-            >
-              <Text style={styles.selectAllText}>
-                {allSelected ? "取消全选" : "全选"}
-              </Text>
-            </Pressable>
-            <Pressable onPress={requestRemove}>
-              <Text style={styles.deleteText}>删除</Text>
-            </Pressable>
-          </View>
         </View>
-      )}
-      {entries.length === 0 ? (
+      </View>
+      {entries.length === 0 && !isClothing ? (
         <Empty
           icon="images-outline"
           title="这里还没有内容"
-          body={isClothing ? "从下方加号开始添加吧" : "这个分类还没有穿搭"}
-          action={isClothing ? "添加" : "返回"}
-          onPress={() => (isClothing ? onAdd(detail.category) : onBack())}
+          body="这个分类还没有穿搭"
+          action="返回"
+          onPress={onBack}
         />
+      ) : isClothing ? (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <Sortable.Grid<ClothingItem | { id: string; isAddTile: true }>
+            columns={3}
+            data={
+              selecting
+                ? (entries as ClothingItem[])
+                : clothingGridEntries
+            }
+            keyExtractor={(entry) => entry.id}
+            strategy="insert"
+            sortEnabled={!selecting}
+            rowGap={10}
+            columnGap={10}
+            dragActivationDelay={320}
+            activationAnimationDuration={160}
+            dropAnimationDuration={220}
+            activeItemScale={1.09}
+            activeItemShadowOpacity={0.28}
+            inactiveItemScale={0.98}
+            itemsLayoutTransitionMode="all"
+            onDragEnd={({ data }) =>
+              persistOrder(
+                data.filter(
+                  (entry): entry is ClothingItem => !("isAddTile" in entry),
+                ),
+              )
+            }
+            renderItem={({ item }) =>
+              "isAddTile" in item ? (
+                <DetailAddTile
+                  onPress={() => setShowImageSourcePicker(true)}
+                />
+              ) : (
+                <Pressable
+                  onPress={() => tap(item)}
+                  style={[
+                    styles.sortableGridCard,
+                    selected.includes(item.id) && styles.selectedCard,
+                  ]}
+                >
+                  <Image
+                    source={{ uri: item.imageUris[0] }}
+                    style={styles.gridImage}
+                  />
+                  {selecting && selected.includes(item.id) && (
+                    <View style={styles.check}>
+                      <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
+              )
+            }
+          />
+        </ScrollView>
       ) : selecting ? (
         <ScrollView contentContainerStyle={styles.grid}>
           <View style={styles.selectionGrid}>
@@ -185,17 +261,11 @@ export function DetailScreen({
                 ) : (
                   <OutfitThumb outfit={item as Outfit} />
                 )}
-                <View style={styles.check}>
-                  <Ionicons
-                    name={
-                      selected.includes(item.id)
-                        ? "checkmark-circle"
-                        : "ellipse-outline"
-                    }
-                    size={22}
-                    color="#fff"
-                  />
-                </View>
+                {selected.includes(item.id) && (
+                  <View style={styles.check}>
+                    <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                  </View>
+                )}
               </Pressable>
             ))}
           </View>
@@ -256,14 +326,6 @@ export function DetailScreen({
           />
         </ScrollView>
       )}
-      {isClothing && (
-        <Pressable
-          style={styles.floatingAdd}
-          onPress={() => onAdd(detail.category)}
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </Pressable>
-      )}
       <ZoomableImageModal
         uri={previewUri}
         onClose={() => setPreviewUri(null)}
@@ -272,6 +334,26 @@ export function DetailScreen({
         outfit={previewOutfit}
         onClose={() => setPreviewOutfit(null)}
       />
+      <ImageSourcePicker
+        visible={showImageSourcePicker}
+        onClose={() => setShowImageSourcePicker(false)}
+        onPick={(uris) =>
+          onAddImages(detail.category as ClothingCategory, uris)
+        }
+      />
     </View>
+  );
+}
+
+function DetailAddTile({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      style={styles.detailAddTile}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="添加图片"
+    >
+      <Ionicons name="add" size={30} color="#aa796d" />
+    </Pressable>
   );
 }

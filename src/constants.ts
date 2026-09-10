@@ -11,7 +11,7 @@ export const CLOTHING_CATEGORIES = [
 ] as const;
 
 export const DEFAULT_OUTFIT_CATEGORIES = ["春夏", "秋冬", "日常"] as const;
-export type ClothingCategory = (typeof CLOTHING_CATEGORIES)[number]["value"];
+export type ClothingCategory = (typeof CLOTHING_CATEGORIES)[number]["value"] ;
 export type OutfitPart = "head" | "neck" | "torso" | "legs" | "feet";
 
 export const PART_LABELS: Record<OutfitPart, string> = {

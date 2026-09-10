@@ -1,9 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { CLOTHING_CATEGORIES, ClothingCategory } from "../constants";
 import { ClothingItem } from "../types";
 import { Empty } from "../components/Empty";
 import { styles } from "../styles";
+import { ZoomableImageModal } from "../components/ZoomableImageModal";
 
 export function Home({
   items,
@@ -14,12 +23,14 @@ export function Home({
   onAdd: (c?: ClothingCategory) => void;
   onOpenCategory: (c: ClothingCategory) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const previewCardWidth = (width - 60) / 3;
   const groups = CLOTHING_CATEGORIES.map((category) => ({
     ...category,
     entries: items
       .filter((item) => item.category === category.value)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .slice(0, 4),
+      .sort((a, b) => a.sortOrder - b.sortOrder),
   })).filter((group) => group.entries.length);
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -54,7 +65,7 @@ export function Home({
                   <Text style={styles.tip}>{group.tip}</Text>
                 )}
               </View>
-              {group.entries.length === 4 && (
+              {group.entries.length > 3 && (
                 <Pressable onPress={() => onOpenCategory(group.value)}>
                   <Text style={styles.more}>
                     更多 <Ionicons name="chevron-forward" />
@@ -62,25 +73,48 @@ export function Home({
                 </Pressable>
               )}
             </View>
-            <View style={styles.row}>
-              {group.entries.slice(0, 3).map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.itemCard}
-                  onPress={() => onOpenCategory(group.value)}
-                >
-                  <Image
-                    source={{ uri: item.imageUris[0] }}
-                    style={styles.itemImage}
-                  />
-                </Pressable>
-              ))}
-            </View>
+            {group.entries.length > 3 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.homeImageScroller}
+              >
+                {group.entries.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.homePreviewCard, { width: previewCardWidth }]}
+                    onPress={() => setPreviewUri(item.imageUris[0])}
+                  >
+                    <Image
+                      source={{ uri: item.imageUris[0] }}
+                      style={styles.itemImage}
+                    />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.row}>
+                {group.entries.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={styles.itemCard}
+                    onPress={() => setPreviewUri(item.imageUris[0])}
+                  >
+                    <Image
+                      source={{ uri: item.imageUris[0] }}
+                      style={styles.itemImage}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         ))
       )}
+      <ZoomableImageModal
+        uri={previewUri}
+        onClose={() => setPreviewUri(null)}
+      />
     </ScrollView>
   );
 }
-
-

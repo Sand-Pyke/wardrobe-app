@@ -43,7 +43,7 @@ export function WardrobeNavigator() {
           items={wardrobe.items}
           outfits={wardrobe.outfits}
           onBack={() => setDetail(null)}
-          onAdd={openAdd}
+          onAddImages={wardrobe.addItems}
           onDeleteItems={wardrobe.deleteItems}
           onDeleteOutfits={wardrobe.deleteOutfits}
           onOpenOutfit={(outfit) => {
@@ -53,16 +53,6 @@ export function WardrobeNavigator() {
           }}
           onReorderItems={wardrobe.persistItems}
           onReorderOutfits={wardrobe.persistOutfits}
-        />
-        <AddClothingModal
-          visible={addCategory !== null}
-          initialCategory={addCategory ?? "top"}
-          existingImageUris={wardrobe.items.flatMap((item) => item.imageUris)}
-          onClose={() => setAddCategory(null)}
-          onSave={async (category, uris) => {
-            await wardrobe.addItems(category, uris);
-            setAddCategory(null);
-          }}
         />
       </View>
     );
