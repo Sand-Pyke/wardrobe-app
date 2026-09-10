@@ -86,6 +86,7 @@ export function Collection({
           <Text style={styles.eyebrow}>LOOKBOOK</Text>
           <Text style={styles.title}>穿搭收藏</Text>
         </View>
+
         <Pressable
           accessibilityLabel={selecting ? "退出管理" : "管理穿搭"}
           style={styles.roundAdd}
@@ -101,8 +102,11 @@ export function Collection({
           />
         </Pressable>
       </View>
+      <Text style={styles.helper}>
+        长按穿搭图片,可以修改穿搭
+      </Text>
       {selecting && groups.length > 0 && (
-        <View style={styles.selectionBar}>
+        <View style={styles.collectionSelectionBar}>
           <Text>
             {selected.length
               ? `已选择 ${selected.length} 项`
@@ -144,36 +148,37 @@ export function Collection({
             <View
               style={[styles.row, selecting && styles.collectionSelectionGrid]}
             >
-              {(selecting ? group.entries : group.entries.slice(0, 3)).map((outfit) => (
-                <Pressable
-                  key={outfit.id}
-                  style={[
-                    styles.outfitCard,
-                    selected.includes(outfit.id) && styles.selectedCard,
-                  ]}
-                  onPress={() => tap(outfit)}
-                  onLongPress={() => {
-                    if (!selecting) onOpenOutfit(outfit);
-                  }}
-                  delayLongPress={350}
-                >
-                  <OutfitThumb outfit={outfit} />
-                  <Text style={styles.itemLabel}>{group.category}</Text>
-                  {selecting && (
-                    <View style={styles.check}>
-                      <Ionicons
-                        name={
-                          selected.includes(outfit.id)
-                            ? "checkmark-circle"
-                            : "ellipse-outline"
-                        }
-                        size={22}
-                        color="#fff"
-                      />
-                    </View>
-                  )}
-                </Pressable>
-              ))}
+              {(selecting ? group.entries : group.entries.slice(0, 3)).map(
+                (outfit) => (
+                  <Pressable
+                    key={outfit.id}
+                    style={[
+                      styles.outfitCard,
+                      selected.includes(outfit.id) && styles.selectedCard,
+                    ]}
+                    onPress={() => tap(outfit)}
+                    onLongPress={() => {
+                      if (!selecting) onOpenOutfit(outfit);
+                    }}
+                    delayLongPress={350}
+                  >
+                    <OutfitThumb outfit={outfit} />
+                    {selecting && (
+                      <View style={styles.collectionCheck}>
+                        <Ionicons
+                          name={
+                            selected.includes(outfit.id)
+                              ? "checkmark-circle"
+                              : "ellipse-outline"
+                          }
+                          size={22}
+                          color="#fff"
+                        />
+                      </View>
+                    )}
+                  </Pressable>
+                ),
+              )}
             </View>
           </View>
         ))

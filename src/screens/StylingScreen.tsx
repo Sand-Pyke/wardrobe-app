@@ -1,17 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
-  Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { ClothingCategory, CLOTHING_CATEGORIES, DEFAULT_OUTFIT_CATEGORIES, OutfitPart, PART_ALLOWED, PART_LABELS } from "../constants";
@@ -28,33 +24,29 @@ const nameOf = (value: ClothingCategory) =>
 export function Styling({
   items,
   editing,
+  customCategories,
   onCancelEdit,
   onSave,
 }: {
   items: ClothingItem[];
   editing: Outfit | null;
+  customCategories: string[];
   onCancelEdit: () => void;
   onSave: (outfit: Outfit, isNew: boolean) => Promise<void>;
 }) {
+  const { height: viewportHeight } = useWindowDimensions();
   const [parts, setParts] = useState<Partial<Record<OutfitPart, ClothingItem>>>(
     editing?.parts ?? {},
   );
   const [category, setCategory] = useState(editing?.category ?? "春夏");
-  const [custom, setCustom] = useState("");
+  const [pendingCategory, setPendingCategory] = useState(category);
   const [chooser, setChooser] = useState<OutfitPart | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   useEffect(() => {
     setParts(editing?.parts ?? {});
     setCategory(editing?.category ?? "春夏");
-    setCustom("");
+    setPendingCategory(editing?.category ?? "春夏");
   }, [editing]);
-  useEffect(() => {
-    const subscription = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })),
-    );
-    return () => subscription.remove();
-  }, []);
   const isDress = parts.torso?.category === "dress";
   function choose(item: ClothingItem) {
     if (chooser)
@@ -68,17 +60,25 @@ export function Styling({
     setChooser(null);
   }
   const valid = Boolean(parts.torso && (isDress || parts.legs));
-  const selectedCategory = custom.trim() || category;
+  const mannequinHeight = Math.max(500, Math.min(680, viewportHeight - 220));
+  const categoryOptions = Array.from(
+    new Set<string>([...DEFAULT_OUTFIT_CATEGORIES, ...customCategories, category]),
+  );
+  function saveOutfit(selectedCategory: string) {
+    setShowCategoryPicker(false);
+    void onSave(
+      {
+        id: editing?.id ?? createId(),
+        category: selectedCategory,
+        parts,
+        createdAt: editing?.createdAt ?? new Date().toISOString(),
+        sortOrder: editing?.sortOrder ?? 0,
+      },
+      false,
+    );
+  }
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoiding}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[styles.scroll, styles.stylingScroll]}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={[styles.scroll, styles.stylingScroll]}>
       <View style={styles.topline}>
         <View>
           <Text style={styles.eyebrow}>
@@ -86,72 +86,36 @@ export function Styling({
           </Text>
           <Text style={styles.title}>{editing ? "编辑穿搭" : "今日搭配"}</Text>
         </View>
-        {editing && (
-          <Pressable onPress={onCancelEdit}>
-            <Text style={styles.cancelText}>取消</Text>
-          </Pressable>
-        )}
+        <View style={styles.headerActions}>
+          {editing && (
+            <Pressable onPress={onCancelEdit} hitSlop={10}>
+              <Text style={styles.cancelText}>取消</Text>
+            </Pressable>
+          )}
+          {valid && (
+            <Pressable
+              style={styles.headerSave}
+              onPress={() => {
+                setPendingCategory(category);
+                setShowCategoryPicker(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="选择分类并保存搭配"
+            >
+              <Ionicons name="checkmark" color="#fff" size={22} />
+            </Pressable>
+          )}
+        </View>
       </View>
-      <Text style={styles.helper}>点按假人部位，选择衣柜里的单品</Text>
+      <Text style={styles.helper}>
+        点按假人部位，选择衣柜里的单品；完成后点击右上角 ✓ 保存
+      </Text>
       <Mannequin
         parts={parts}
         isDress={isDress}
+        height={mannequinHeight}
         onPress={(part) => setChooser(part)}
       />
-      <View style={styles.rule} />
-      <Text style={styles.sectionTitle}>穿搭分类</Text>
-      <Text style={styles.tip}>选择一个季节，或新建自己的标签</Text>
-      <View style={styles.chips}>
-        {DEFAULT_OUTFIT_CATEGORIES.map((item) => (
-          <Chip
-            key={item}
-            selected={category === item && !custom}
-            text={item}
-            onPress={() => {
-              setCategory(item);
-              setCustom("");
-            }}
-          />
-        ))}
-      </View>
-      <TextInput
-        style={styles.input}
-        placeholder="例如：通勤、约会、旅行"
-        value={custom}
-        onChangeText={setCustom}
-        onFocus={() => {
-          setTimeout(
-            () => scrollRef.current?.scrollToEnd({ animated: true }),
-            250,
-          );
-        }}
-        maxLength={16}
-      />
-      <Pressable
-        style={[styles.primaryButton, !valid && styles.disabled]}
-        onPress={() => {
-          if (!valid)
-            return Alert.alert(
-              "还不能保存",
-              "请选择躯干；上衣还需要搭配裤子或裙子。",
-            );
-          void onSave(
-            {
-              id: editing?.id ?? createId(),
-              category: selectedCategory,
-              parts,
-              createdAt: editing?.createdAt ?? new Date().toISOString(),
-              sortOrder: editing?.sortOrder ?? 0,
-            },
-            Boolean(custom.trim()),
-          );
-        }}
-      >
-        <Text style={styles.primaryText}>
-          {editing ? "保存修改" : "保存这套穿搭"}
-        </Text>
-        <Ionicons name="arrow-forward" color="#fff" size={19} />
-      </Pressable>
       <ItemChooser
         visible={chooser !== null}
         part={chooser}
@@ -159,31 +123,109 @@ export function Styling({
         onClose={() => setChooser(null)}
         onPick={choose}
       />
+      <CategorySaveModal
+        visible={showCategoryPicker}
+        categories={categoryOptions}
+        selectedCategory={pendingCategory}
+        onSelect={setPendingCategory}
+        onCancel={() => setShowCategoryPicker(false)}
+        onSave={() => saveOutfit(pendingCategory)}
+      />
       </ScrollView>
-    </KeyboardAvoidingView>
+  );
+}
+
+function CategorySaveModal({
+  visible,
+  categories,
+  selectedCategory,
+  onSelect,
+  onCancel,
+  onSave,
+}: {
+  visible: boolean;
+  categories: string[];
+  selectedCategory: string;
+  onSelect: (category: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={styles.modalShade}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetGrip} />
+          <Text style={styles.sheetTitle}>选择穿搭分类</Text>
+          <Text style={styles.tip}>选择分类后再保存这套搭配</Text>
+          <View style={styles.chips}>
+            {categories.map((item) => (
+              <Chip
+                key={item}
+                selected={selectedCategory === item}
+                text={item}
+                onPress={() => onSelect(item)}
+              />
+            ))}
+          </View>
+          <View style={styles.modalActions}>
+            <Pressable style={styles.secondaryButton} onPress={onCancel}>
+              <Text style={styles.cancelText}>取消</Text>
+            </Pressable>
+            <Pressable style={styles.confirmButton} onPress={onSave}>
+              <Text style={styles.primaryText}>保存</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 function Mannequin({
   parts,
   isDress,
+  height,
   onPress,
 }: {
   parts: Partial<Record<OutfitPart, ClothingItem>>;
   isDress: boolean;
+  height: number;
   onPress: (part: OutfitPart) => void;
 }) {
   const image = (part: OutfitPart) => parts[part]?.imageUris[0];
+  const scale = height / 500;
+  const scaled = (value: number) => Math.round(value * scale);
   return (
-    <View style={styles.mannequinWrap}>
-      <Pressable style={styles.manHead} onPress={() => onPress("head")}>
+    <View style={[styles.mannequinWrap, { height }]}>
+      <Pressable
+        style={[
+          styles.manHead,
+          {
+            height: scaled(76),
+            width: scaled(79),
+            borderRadius: scaled(40),
+          },
+        ]}
+        onPress={() => onPress("head")}
+      >
         {image("head") ? (
           <Image source={{ uri: image("head") }} style={styles.partImage} />
         ) : (
           <PartHint icon="add" text="帽子" />
         )}
       </Pressable>
-      <Pressable style={styles.manNeck} onPress={() => onPress("neck")}>
+      <Pressable
+        style={[
+          styles.manNeck,
+          {
+            height: scaled(41),
+            width: scaled(62),
+            borderRadius: scaled(11),
+            marginTop: scaled(-4),
+          },
+        ]}
+        onPress={() => onPress("neck")}
+      >
         {image("neck") ? (
           <Image source={{ uri: image("neck") }} style={styles.partImage} />
         ) : (
@@ -191,7 +233,21 @@ function Mannequin({
         )}
       </Pressable>
       <Pressable
-        style={[styles.manTorso, isDress && styles.manDress]}
+        style={[
+          styles.manTorso,
+          {
+            width: scaled(201),
+            height: scaled(165),
+            borderRadius: scaled(51),
+            marginTop: scaled(-1),
+          },
+          isDress && styles.manDress,
+          isDress && {
+            height: scaled(290),
+            borderBottomLeftRadius: scaled(80),
+            borderBottomRightRadius: scaled(80),
+          },
+        ]}
         onPress={() => onPress("torso")}
       >
         {image("torso") ? (
@@ -201,7 +257,19 @@ function Mannequin({
         )}
       </Pressable>
       {!isDress && (
-        <Pressable style={styles.manLegs} onPress={() => onPress("legs")}>
+        <Pressable
+          style={[
+            styles.manLegs,
+            {
+              width: scaled(143),
+              height: scaled(128),
+              marginTop: scaled(2),
+              borderBottomLeftRadius: scaled(29),
+              borderBottomRightRadius: scaled(29),
+            },
+          ]}
+          onPress={() => onPress("legs")}
+        >
           {image("legs") ? (
             <Image source={{ uri: image("legs") }} style={styles.partImage} />
           ) : (
@@ -210,7 +278,17 @@ function Mannequin({
         </Pressable>
       )}
       <Pressable
-        style={[styles.manFeet, isDress && styles.manFeetDress]}
+        style={[
+          styles.manFeet,
+          {
+            width: scaled(180),
+            height: scaled(59),
+            borderRadius: scaled(21),
+            marginTop: scaled(5),
+          },
+          isDress && styles.manFeetDress,
+          isDress && { marginTop: scaled(6) },
+        ]}
         onPress={() => onPress("feet")}
       >
         {image("feet") ? (

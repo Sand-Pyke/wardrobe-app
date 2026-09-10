@@ -31,7 +31,7 @@ itemsRouter.post(
     };
     if (!categoryId || !Array.isArray(imageUrls) || imageUrls.length === 0) {
       res
-        .status(400)
+        .status(400) 
         .json({ error: "categoryId 与至少一张 imageUrls 为必填项" });
       return;
     }
@@ -64,7 +64,7 @@ itemsRouter.delete(
       return;
     }
     await pool.query("DELETE FROM clothing_items WHERE id = ANY($1::uuid[])", [
-      ids,
+      ids,           
     ]);
     res.status(204).end();
   }),

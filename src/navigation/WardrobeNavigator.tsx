@@ -89,6 +89,7 @@ export function WardrobeNavigator() {
           <Styling
             items={wardrobe.items}
             editing={editingOutfit}
+            customCategories={wardrobe.customCategories}
             onCancelEdit={() => setEditingOutfit(null)}
             onSave={async (outfit, isNewCategory) => {
               const wasEditing = editingOutfit !== null;

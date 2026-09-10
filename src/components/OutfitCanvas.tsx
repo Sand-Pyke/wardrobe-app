@@ -11,7 +11,12 @@ export function OutfitCanvas({
   const { head, neck, torso, legs, feet } = outfit.parts;
   const isDress = torso?.category === "dress";
   return (
-    <View style={[canvasStyles.canvas, compact && canvasStyles.compact]}>
+    <View
+      style={[
+        canvasStyles.canvas,
+        compact ? canvasStyles.compact : canvasStyles.preview,
+      ]}
+    >
       {head && (
         <Image
           source={{ uri: head.imageUris[0] }}
@@ -59,7 +64,6 @@ const canvasStyles = StyleSheet.create({
   canvas: {
     width: "100%",
     aspectRatio: 0.78,
-    maxHeight: "82%",
     backgroundColor: "#f8efeb",
     borderRadius: 24,
     overflow: "hidden",
@@ -69,6 +73,7 @@ const canvasStyles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 15,
   },
+  preview: { maxHeight: "82%" },
   part: {
     position: "absolute",
     backgroundColor: "#eadeda",
