@@ -1,122 +1,276 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Alert } from "react-native";
 import {
   ClothingCategory,
   DEFAULT_OUTFIT_CATEGORIES,
   OutfitPart,
 } from "../constants";
-import { repository } from "../data/storage";
-import { ClothingItem, Outfit } from "../types";
+import {
+  cleanupUntrackedImageFiles,
+  deleteImageAssetFile,
+  deleteImageAssetFiles,
+  imageSourceKey,
+  importImageAsset,
+  resolveImageAssetUri,
+} from "../data/imageAssets";
+import {
+  createEmptyWardrobeState,
+  repository,
+} from "../data/storage";
+import {
+  ClothingItem,
+  ImageAsset,
+  Outfit,
+  StoredClothingItem,
+  StoredOutfit,
+  WardrobeState,
+} from "../types";
 
 const createId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+function hydrateItems(state: WardrobeState): ClothingItem[] {
+  return Object.values(state.itemsById)
+    .map((item) => ({
+      ...item,
+      imageUris: item.imageAssetIds
+        .map((assetId) => state.assetsById[assetId])
+        .filter((asset): asset is ImageAsset => Boolean(asset))
+        .map(resolveImageAssetUri),
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function hydrateOutfits(
+  state: WardrobeState,
+  items: ClothingItem[],
+): Outfit[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  return Object.values(state.outfitsById)
+    .map((outfit) => {
+      const parts: Partial<Record<OutfitPart, ClothingItem>> = {};
+      (Object.entries(outfit.parts) as Array<
+        [OutfitPart, string | undefined]
+      >).forEach(([part, itemId]) => {
+        const item = itemId ? itemById.get(itemId) : undefined;
+        if (item) parts[part] = item;
+      });
+      return { ...outfit, parts };
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function storeItem(item: ClothingItem): StoredClothingItem {
+  const { imageUris: _imageUris, ...stored } = item;
+  return stored;
+}
+
+function storeOutfit(outfit: Outfit): StoredOutfit {
+  const parts: Partial<Record<OutfitPart, string>> = {};
+  (Object.entries(outfit.parts) as Array<
+    [OutfitPart, ClothingItem | undefined]
+  >).forEach(([part, item]) => {
+    if (item) parts[part] = item.id;
+  });
+  return { ...outfit, parts };
+}
+
+function sameImage(left: ImageAsset, right: ImageAsset) {
+  return Boolean(
+    left.checksum &&
+      right.checksum &&
+      left.checksum === right.checksum &&
+      left.byteSize === right.byteSize,
+  );
+}
+
 export function useWardrobeData() {
-  const [items, setItems] = useState<ClothingItem[]>([]);
-  const [outfits, setOutfits] = useState<Outfit[]>([]);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [state, setState] = useState<WardrobeState>(createEmptyWardrobeState);
+  const items = useMemo(() => hydrateItems(state), [state]);
+  const outfits = useMemo(() => hydrateOutfits(state, items), [items, state]);
+  const customCategories = state.outfitCategories;
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      try {
+        const loadedState = await repository.getState();
+        cleanupUntrackedImageFiles(Object.values(loadedState.assetsById));
+        setState(loadedState);
+      } catch {
+        Alert.alert(
+          "衣柜数据迁移失败",
+          "原有数据仍然保留，请重新启动应用后再试。",
+        );
+      }
+    })();
   }, []);
 
-  async function load() {
-    const [loadedItems, loadedOutfits, loadedCategories] = await Promise.all([
-      repository.getItems(),
-      repository.getOutfits(),
-      repository.getOutfitCategories(),
-    ]);
-    setItems(loadedItems);
-    setOutfits(loadedOutfits);
-    setCustomCategories(loadedCategories);
+  async function commit(next: WardrobeState) {
+    await repository.saveState(next);
+    setState(next);
   }
 
-  async function persistItems(next: ClothingItem[]) {
-    setItems(next);
-    await repository.saveItems(next);
-  }
-
-  async function persistOutfits(next: Outfit[]) {
-    setOutfits(next);
-    await repository.saveOutfits(next);
-  }
-
-  async function addItems(
-    category: ClothingCategory,
-    imageUris: string[],
-  ) {
-    const existingUris = new Set(
-      items.flatMap((item) =>
-        item.imageUris.map((uri) => uri.split("?")[0].toLowerCase()),
-      ),
+  async function persistItems(nextItems: ClothingItem[]) {
+    const itemsById = Object.fromEntries(
+      nextItems.map((item) => [item.id, storeItem(item)]),
     );
-    const uniqueUris = imageUris.filter((uri) => {
-      const key = uri.split("?")[0].toLowerCase();
-      if (existingUris.has(key)) return false;
-      existingUris.add(key);
-      return true;
-    });
-    if (!uniqueUris.length) return;
-    const existing = items.filter((item) => item.category === category).length;
-    const additions = uniqueUris.map(
-      (uri, index): ClothingItem => ({
-        id: createId(),
-        category,
-        imageUris: [uri],
-        createdAt: new Date().toISOString(),
-        sortOrder: existing + index,
-      }),
+    await commit({ ...state, itemsById });
+  }
+
+  async function persistOutfits(nextOutfits: Outfit[]) {
+    const outfitsById = Object.fromEntries(
+      nextOutfits.map((outfit) => [outfit.id, storeOutfit(outfit)]),
     );
-    await persistItems([...items, ...additions]);
+    await commit({ ...state, outfitsById });
+  }
+
+  async function addItems(category: ClothingCategory, imageUris: string[]) {
+    const knownSourceKeys = new Set(
+      Object.values(state.assetsById).map((asset) => asset.sourceKey),
+    );
+    const nextAssetsById = { ...state.assetsById };
+    const nextItemsById = { ...state.itemsById };
+    const createdAssets: ImageAsset[] = [];
+    let nextSortOrder = Object.values(state.itemsById).filter(
+      (item) => item.category === category,
+    ).length;
+
+    try {
+      for (const uri of imageUris) {
+        const sourceKey = imageSourceKey(uri);
+        if (knownSourceKeys.has(sourceKey)) continue;
+        knownSourceKeys.add(sourceKey);
+
+        const asset = await importImageAsset(uri);
+        const duplicate = Object.values(nextAssetsById).find((existing) =>
+          sameImage(existing, asset),
+        );
+        if (duplicate) {
+          deleteImageAssetFile(asset);
+          continue;
+        }
+
+        createdAssets.push(asset);
+        nextAssetsById[asset.id] = asset;
+        const id = createId();
+        nextItemsById[id] = {
+          id,
+          category,
+          imageAssetIds: [asset.id],
+          createdAt: new Date().toISOString(),
+          sortOrder: nextSortOrder,
+        };
+        nextSortOrder += 1;
+      }
+
+      if (!createdAssets.length) return;
+      await commit({
+        ...state,
+        assetsById: nextAssetsById,
+        itemsById: nextItemsById,
+      });
+    } catch (error) {
+      deleteImageAssetFiles(createdAssets);
+      throw error;
+    }
   }
 
   async function deleteItems(ids: string[]) {
-    await persistItems(items.filter((item) => !ids.includes(item.id)));
+    const deletedIds = new Set(ids);
+    const itemsById = Object.fromEntries(
+      Object.entries(state.itemsById).filter(([id]) => !deletedIds.has(id)),
+    );
+    const outfitsById = Object.fromEntries(
+      Object.entries(state.outfitsById).map(([outfitId, outfit]) => {
+        const parts = Object.fromEntries(
+          Object.entries(outfit.parts).filter(
+            ([, itemId]) => !itemId || !deletedIds.has(itemId),
+          ),
+        ) as Partial<Record<OutfitPart, string>>;
+        return [outfitId, { ...outfit, parts }];
+      }),
+    );
+    const usedAssetIds = new Set(
+      Object.values(itemsById).flatMap((item) => item.imageAssetIds),
+    );
+    const orphanedAssets = Object.values(state.assetsById).filter(
+      (asset) => !usedAssetIds.has(asset.id),
+    );
+    const assetsById = Object.fromEntries(
+      Object.entries(state.assetsById).filter(([id]) => usedAssetIds.has(id)),
+    );
+
+    await commit({ ...state, itemsById, outfitsById, assetsById });
+    deleteImageAssetFiles(orphanedAssets);
   }
 
   async function deleteOutfits(ids: string[]) {
-    await persistOutfits(outfits.filter((outfit) => !ids.includes(outfit.id)));
+    const deletedIds = new Set(ids);
+    const outfitsById = Object.fromEntries(
+      Object.entries(state.outfitsById).filter(([id]) => !deletedIds.has(id)),
+    );
+    await commit({ ...state, outfitsById });
   }
 
   async function replaceItemImage(itemId: string, imageUri: string) {
-    const nextItems = items.map((item) =>
-      item.id === itemId
-        ? { ...item, imageUris: [imageUri, ...item.imageUris.slice(1)] }
-        : item,
+    const currentItem = state.itemsById[itemId];
+    if (!currentItem) return;
+
+    const importedAsset = await importImageAsset(imageUri);
+    const duplicate = Object.values(state.assetsById).find((asset) =>
+      sameImage(asset, importedAsset),
     );
-    const replacement = nextItems.find((item) => item.id === itemId);
-    if (!replacement) return;
+    const replacementAsset = duplicate ?? importedAsset;
+    if (duplicate) deleteImageAssetFile(importedAsset);
 
-    const nextOutfits = outfits.map((outfit) => {
-      const parts = { ...outfit.parts };
-      (Object.keys(parts) as OutfitPart[]).forEach((part) => {
-        if (parts[part]?.id === itemId) parts[part] = replacement;
-      });
-      return { ...outfit, parts };
-    });
+    const itemsById = {
+      ...state.itemsById,
+      [itemId]: {
+        ...currentItem,
+        imageAssetIds: [
+          replacementAsset.id,
+          ...currentItem.imageAssetIds.slice(1),
+        ],
+      },
+    };
+    const usedAssetIds = new Set(
+      Object.values(itemsById).flatMap((item) => item.imageAssetIds),
+    );
+    const assetsWithReplacement = duplicate
+      ? state.assetsById
+      : { ...state.assetsById, [importedAsset.id]: importedAsset };
+    const orphanedAssets = Object.values(assetsWithReplacement).filter(
+      (asset) => !usedAssetIds.has(asset.id),
+    );
+    const assetsById = Object.fromEntries(
+      Object.entries(assetsWithReplacement).filter(([id]) =>
+        usedAssetIds.has(id),
+      ),
+    );
 
-    setItems(nextItems);
-    setOutfits(nextOutfits);
-    await Promise.all([
-      repository.saveItems(nextItems),
-      repository.saveOutfits(nextOutfits),
-    ]);
+    try {
+      await commit({ ...state, itemsById, assetsById });
+      deleteImageAssetFiles(orphanedAssets);
+    } catch (error) {
+      if (!duplicate) deleteImageAssetFile(importedAsset);
+      throw error;
+    }
   }
 
   async function saveOutfit(outfit: Outfit, isNewCategory: boolean) {
-    const next = outfits.some((entry) => entry.id === outfit.id)
-      ? outfits.map((entry) => (entry.id === outfit.id ? outfit : entry))
-      : [outfit, ...outfits];
-    await persistOutfits(next);
-
-    if (
+    const storedOutfit = storeOutfit(outfit);
+    const outfitsById = {
+      ...state.outfitsById,
+      [storedOutfit.id]: storedOutfit,
+    };
+    const shouldAddCategory =
       isNewCategory &&
       !DEFAULT_OUTFIT_CATEGORIES.includes(outfit.category as never) &&
-      !customCategories.includes(outfit.category)
-    ) {
-      const categories = [...customCategories, outfit.category];
-      setCustomCategories(categories);
-      await repository.saveOutfitCategories(categories);
-    }
+      !state.outfitCategories.includes(outfit.category);
+    const outfitCategories = shouldAddCategory
+      ? [...state.outfitCategories, outfit.category]
+      : state.outfitCategories;
+    await commit({ ...state, outfitsById, outfitCategories });
   }
 
   return {
