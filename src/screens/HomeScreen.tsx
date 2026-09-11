@@ -17,11 +17,13 @@ import { ZoomableImageModal } from "../components/ZoomableImageModal";
 export function Home({
   items,
   onAdd,
+  onOpenLegal,
   onOpenCategory,
   onReplaceImage,
 }: {
   items: ClothingItem[];
   onAdd: (c?: ClothingCategory) => void;
+  onOpenLegal: () => void;
   onOpenCategory: (c: ClothingCategory) => void;
   onReplaceImage: (itemId: string, imageUri: string) => Promise<void>;
 }) {
@@ -41,15 +43,24 @@ export function Home({
       <View style={styles.topline}>
         <View>
           <Text style={styles.eyebrow}>MY WARDROBE</Text>
-          <Text style={styles.title}>阿雪的衣柜</Text>
+          <Text style={styles.title}>X²衣橱</Text>
         </View>
-        <Pressable
-          accessibilityLabel="新增衣物"
-          style={styles.roundAdd}
-          onPress={() => onAdd()}
-        >
-          <Ionicons name="add" size={27} color="#fff" />
-        </Pressable>
+        <View style={styles.homeHeaderActions}>
+          <Pressable
+            accessibilityLabel="关于与隐私"
+            style={styles.roundInfo}
+            onPress={onOpenLegal}
+          >
+            <Ionicons name="information-outline" size={22} color="#9e5848" />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="新增衣物"
+            style={styles.roundAdd}
+            onPress={() => onAdd()}
+          >
+            <Ionicons name="add" size={27} color="#fff" />
+          </Pressable>
+        </View>
       </View>
       {groups.length === 0 ? (
         <Empty

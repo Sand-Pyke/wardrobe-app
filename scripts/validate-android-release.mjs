@@ -26,6 +26,7 @@ const imagePickerOptions = Array.isArray(imagePickerPlugin)
   : {};
 
 check(Boolean(expo.name && expo.slug && expo.version), "应用基础信息完整");
+check(expo.name === "X²衣橱", "应用名称已统一为 X²衣橱");
 check(
   /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(android.package ?? ""),
   "Android 包名格式正确",
@@ -46,6 +47,15 @@ check(
   "Android Manifest 已阻止录音权限",
 );
 check(
+  !(android.permissions ?? []).includes(
+    "android.permission.SYSTEM_ALERT_WINDOW",
+  ) &&
+    (android.blockedPermissions ?? []).includes(
+      "android.permission.SYSTEM_ALERT_WINDOW",
+    ),
+  "Android Manifest 已阻止悬浮窗权限",
+);
+check(
   easJson.build?.preview?.android?.buildType === "apk",
   "preview 构建产物为 APK",
 );
@@ -56,6 +66,30 @@ check(
 check(
   Boolean(packageJson.dependencies?.["expo-file-system"]),
   "本地图片持久化依赖已声明",
+);
+
+const legalContentPath = resolve(projectRoot, "src/legal/content.ts");
+const privacyDocumentPath = resolve(projectRoot, "docs/PRIVACY_POLICY.md");
+const agreementDocumentPath = resolve(projectRoot, "docs/USER_AGREEMENT.md");
+const appSource = readFileSync(resolve(projectRoot, "App.tsx"), "utf8");
+const legalContent = existsSync(legalContentPath)
+  ? readFileSync(legalContentPath, "utf8")
+  : "";
+check(
+  existsSync(legalContentPath) &&
+    legalContent.includes("suptiger@yeah.net") &&
+    legalContent.includes("X²衣橱隐私政策"),
+  "应用内隐私政策与联系邮箱已配置",
+);
+check(
+  appSource.includes("PRIVACY_CONSENT_KEY") &&
+    appSource.includes("PrivacyConsentModal") &&
+    appSource.includes("withdrawPrivacyConsent"),
+  "首次启动隐私同意门与撤回机制已接入",
+);
+check(
+  existsSync(privacyDocumentPath) && existsSync(agreementDocumentPath),
+  "对外发布用隐私政策与用户协议文档已生成",
 );
 
 const iconPath = resolve(projectRoot, expo.icon ?? "");

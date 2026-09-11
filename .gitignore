@@ -10,3 +10,7 @@ work-export/
 server/dist/
 server/.env
 android/
+credentials.json
+credentials/
+*.jks
+*.keystore

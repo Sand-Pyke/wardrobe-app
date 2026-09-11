@@ -1,4 +1,4 @@
-# 阿雪的衣柜
+# X²衣橱  你的衣橱，X 种可能
 
 React Native Expo 前端 + Express/PostgreSQL API。前端当前使用 AsyncStorage 保存数据，便于直接在 Expo Go 中体验；服务端提供与需求一致的 REST API 和 PostgreSQL 结构，后续将 repository 替换为 API 实现即可接入。
 

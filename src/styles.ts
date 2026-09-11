@@ -26,6 +26,15 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.15,
     marginTop: 2,
   },
+  homeHeaderActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roundInfo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f7eae5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   roundAdd: {
     width: 46,
     height: 46,

@@ -13,7 +13,7 @@ import { styles } from "../styles";
 import { Outfit } from "../types";
 import { DetailRoute, Tab } from "./types";
 
-export function WardrobeNavigator() {
+export function WardrobeNavigator({ onOpenLegal }: { onOpenLegal: () => void }) {
   const insets = useSafeAreaInsets();
   const wardrobe = useWardrobeData();
   const [tab, setTab] = useState<Tab>("home");
@@ -71,6 +71,7 @@ export function WardrobeNavigator() {
           <Home
             items={wardrobe.items}
             onAdd={openAdd}
+            onOpenLegal={onOpenLegal}
             onReplaceImage={wardrobe.replaceItemImage}
             onOpenCategory={(category) =>
               setDetail({ type: "clothing", category })
