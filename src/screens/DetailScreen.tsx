@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS, useSharedValue } from "react-native-reanimated";
 import Sortable from "react-native-sortables";
 import { ClothingCategory, CLOTHING_CATEGORIES } from "../constants";
 import { ClothingItem, Outfit } from "../types";
@@ -51,6 +53,8 @@ export function DetailScreen({
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [previewOutfit, setPreviewOutfit] = useState<Outfit | null>(null);
   const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
+  const selectionGridWidth = useSharedValue(0);
+  const visitedSwipeIndexes = useSharedValue<number[]>([]);
   const allSelected =
     entries.length > 0 && selected.length === entries.length;
   const clothingGridEntries = isClothing
@@ -62,13 +66,80 @@ export function DetailScreen({
   const previewItem =
     items.find((item) => item.id === previewItemId) ?? null;
 
+  const toggleSelection = React.useCallback((id: string) => {
+    setSelected((previous) =>
+      previous.includes(id)
+        ? previous.filter((selectedId) => selectedId !== id)
+        : [...previous, id],
+    );
+  }, []);
+  const selectableIdKey = entries.map((entry) => entry.id).join("\u0000");
+  const swipeSelectGesture = React.useMemo(() => {
+    const selectableIds = selectableIdKey
+      ? selectableIdKey.split("\u0000")
+      : [];
+
+    return Gesture.Pan()
+      .enabled(selecting)
+      .minDistance(4)
+      .onBegin(() => {
+        visitedSwipeIndexes.value = [];
+      })
+      .onStart((event) => {
+        const cellSize = (selectionGridWidth.value - 20) / 3;
+        if (cellSize <= 0) return;
+        const cellStep = cellSize + 10;
+        const column = Math.floor(event.x / cellStep);
+        const row = Math.floor(event.y / cellStep);
+        const insideColumn = event.x - column * cellStep <= cellSize;
+        const insideRow = event.y - row * cellStep <= cellSize;
+        const index = row * 3 + column;
+        if (
+          !insideColumn ||
+          !insideRow ||
+          column < 0 ||
+          column > 2 ||
+          row < 0 ||
+          index < 0 ||
+          index >= selectableIds.length
+        )
+          return;
+        visitedSwipeIndexes.value = [index];
+        runOnJS(toggleSelection)(selectableIds[index]);
+      })
+      .onUpdate((event) => {
+        const cellSize = (selectionGridWidth.value - 20) / 3;
+        if (cellSize <= 0) return;
+        const cellStep = cellSize + 10;
+        const column = Math.floor(event.x / cellStep);
+        const row = Math.floor(event.y / cellStep);
+        const insideColumn = event.x - column * cellStep <= cellSize;
+        const insideRow = event.y - row * cellStep <= cellSize;
+        const index = row * 3 + column;
+        if (
+          !insideColumn ||
+          !insideRow ||
+          column < 0 ||
+          column > 2 ||
+          row < 0 ||
+          index < 0 ||
+          index >= selectableIds.length ||
+          visitedSwipeIndexes.value.includes(index)
+        )
+          return;
+        visitedSwipeIndexes.value = [...visitedSwipeIndexes.value, index];
+        runOnJS(toggleSelection)(selectableIds[index]);
+      });
+  }, [
+    selectableIdKey,
+    selecting,
+    selectionGridWidth,
+    toggleSelection,
+    visitedSwipeIndexes,
+  ]);
+
   function tap(entry: ClothingItem | Outfit) {
-    if (selecting)
-      setSelected((prev) =>
-        prev.includes(entry.id)
-          ? prev.filter((x) => x !== entry.id)
-          : [...prev, entry.id],
-      );
+    if (selecting) toggleSelection(entry.id);
     else if (isClothing) setPreviewItemId(entry.id);
     else setPreviewOutfit(entry as Outfit);
   }
@@ -190,144 +261,120 @@ export function DetailScreen({
           action="返回"
           onPress={onBack}
         />
-      ) : isClothing ? (
+      ) : !isClothing && entries.length === 1 ? (
         <ScrollView contentContainerStyle={styles.grid}>
-          <Sortable.Grid<ClothingItem | { id: string; isAddTile: true }>
-            columns={3}
-            data={
-              selecting
-                ? (entries as ClothingItem[])
-                : clothingGridEntries
-            }
-            keyExtractor={(entry) => entry.id}
-            strategy="insert"
-            sortEnabled={!selecting}
-            rowGap={10}
-            columnGap={10}
-            dragActivationDelay={320}
-            activationAnimationDuration={160}
-            dropAnimationDuration={220}
-            activeItemScale={1.09}
-            activeItemShadowOpacity={0.28}
-            inactiveItemScale={0.98}
-            itemsLayoutTransitionMode="all"
-            onDragEnd={({ data }) =>
-              persistOrder(
-                data.filter(
-                  (entry): entry is ClothingItem => !("isAddTile" in entry),
-                ),
-              )
-            }
-            renderItem={({ item }) =>
-              "isAddTile" in item ? (
-                <DetailAddTile
-                  onPress={() => setShowImageSourcePicker(true)}
-                />
-              ) : (
-                <Pressable
-                  onPress={() => tap(item)}
-                  style={[
-                    styles.sortableGridCard,
-                    selected.includes(item.id) && styles.selectedCard,
-                  ]}
-                >
-                  <Image
-                    source={{ uri: item.imageUris[0] }}
-                    style={styles.gridImage}
-                  />
-                  {selecting && selected.includes(item.id) && (
-                    <View style={styles.check}>
-                      <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                    </View>
-                  )}
-                </Pressable>
-              )
-            }
-          />
-        </ScrollView>
-      ) : selecting ? (
-        <ScrollView contentContainerStyle={styles.grid}>
-          <View style={styles.selectionGrid}>
-            {entries.map((item) => (
+          <GestureDetector gesture={swipeSelectGesture}>
+            <View
+              style={styles.selectionGrid}
+              onLayout={(event) => {
+                selectionGridWidth.value = event.nativeEvent.layout.width;
+              }}
+            >
               <Pressable
-                key={item.id}
-                onPress={() => tap(item)}
+                onPress={() => tap(entries[0])}
+                onLongPress={() =>
+                  !selecting && onOpenOutfit(entries[0] as Outfit)
+                }
                 style={[
                   styles.gridCard,
-                  selected.includes(item.id) && styles.selectedCard,
+                  selecting &&
+                    selected.includes(entries[0].id) &&
+                    styles.selectedCard,
                 ]}
               >
-                {isClothing ? (
-                  <Image
-                    source={{ uri: (item as ClothingItem).imageUris[0] }}
-                    style={styles.gridImage}
-                  />
-                ) : (
-                  <OutfitThumb outfit={item as Outfit} />
-                )}
-                {selected.includes(item.id) && (
+                <OutfitThumb outfit={entries[0] as Outfit} />
+                {selecting && selected.includes(entries[0].id) && (
                   <View style={styles.check}>
-                    <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color="#fff"
+                    />
                   </View>
                 )}
               </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-      ) : entries.length === 1 ? (
-        <ScrollView contentContainerStyle={styles.grid}>
-          <View style={styles.selectionGrid}>
-            <Pressable
-              onPress={() => tap(entries[0])}
-              onLongPress={() =>
-                !isClothing && onOpenOutfit(entries[0] as Outfit)
-              }
-              style={styles.gridCard}
-            >
-              {isClothing ? (
-                <Image
-                  source={{ uri: (entries[0] as ClothingItem).imageUris[0] }}
-                  style={styles.gridImage}
-                />
-              ) : (
-                <OutfitThumb outfit={entries[0] as Outfit} />
-              )}
-            </Pressable>
-          </View>
+            </View>
+          </GestureDetector>
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.grid}>
-          <Sortable.Grid<ClothingItem | Outfit>
-            columns={3}
-            data={entries}
-            keyExtractor={(entry) => entry.id}
-            strategy="insert"
-            rowGap={10}
-            columnGap={10}
-            dragActivationDelay={320}
-            activationAnimationDuration={160}
-            dropAnimationDuration={220}
-            activeItemScale={1.09}
-            activeItemShadowOpacity={0.28}
-            inactiveItemScale={0.98}
-            itemsLayoutTransitionMode="all"
-            onDragEnd={({ data }) => persistOrder(data)}
-            renderItem={({ item }) => (
-              <Pressable
-                onPress={() => tap(item)}
-                style={styles.sortableGridCard}
+          <GestureDetector gesture={swipeSelectGesture}>
+            <View
+              onLayout={(event) => {
+                selectionGridWidth.value = event.nativeEvent.layout.width;
+              }}
+            >
+              <Sortable.Grid<
+                ClothingItem | Outfit | { id: string; isAddTile: true }
               >
-                {isClothing ? (
-                  <Image
-                    source={{ uri: (item as ClothingItem).imageUris[0] }}
-                    style={styles.gridImage}
-                  />
-                ) : (
-                  <OutfitThumb outfit={item as Outfit} />
-                )}
-              </Pressable>
-            )}
-          />
+                columns={3}
+                data={isClothing ? clothingGridEntries : entries}
+                keyExtractor={(entry) => entry.id}
+                strategy="insert"
+                sortEnabled={!selecting}
+                rowGap={10}
+                columnGap={10}
+                dragActivationDelay={320}
+                activationAnimationDuration={160}
+                dropAnimationDuration={220}
+                activeItemScale={1.09}
+                activeItemShadowOpacity={0.28}
+                inactiveItemScale={0.98}
+                itemsLayoutTransitionMode="all"
+                onDragEnd={({ data }) =>
+                  persistOrder(
+                    data.filter(
+                      (entry): entry is ClothingItem | Outfit =>
+                        !("isAddTile" in entry),
+                    ),
+                  )
+                }
+                renderItem={({ item }) =>
+                  "isAddTile" in item ? (
+                    <DetailAddTile
+                      hidden={selecting}
+                      onPress={() => setShowImageSourcePicker(true)}
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={() => tap(item)}
+                      onLongPress={() =>
+                        !selecting &&
+                        !isClothing &&
+                        onOpenOutfit(item as Outfit)
+                      }
+                      style={[
+                        styles.sortableGridCard,
+                        selecting &&
+                          selected.includes(item.id) &&
+                          styles.selectedCard,
+                      ]}
+                    >
+                      {isClothing ? (
+                        <Image
+                          source={{
+                            uri: (item as ClothingItem).imageUris[0],
+                          }}
+                          style={styles.gridImage}
+                        />
+                      ) : (
+                        <OutfitThumb outfit={item as Outfit} />
+                      )}
+                      {selecting && selected.includes(item.id) && (
+                        <View style={styles.check}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={22}
+                            color="#fff"
+                          />
+                        </View>
+                      )}
+                    </Pressable>
+                  )
+                }
+              />
+            </View>
+          </GestureDetector>
         </ScrollView>
       )}
       <ZoomableImageModal
@@ -354,11 +401,18 @@ export function DetailScreen({
   );
 }
 
-function DetailAddTile({ onPress }: { onPress: () => void }) {
+function DetailAddTile({
+  onPress,
+  hidden = false,
+}: {
+  onPress: () => void;
+  hidden?: boolean;
+}) {
   return (
     <Pressable
-      style={styles.detailAddTile}
+      style={[styles.detailAddTile, hidden && styles.hiddenGridTile]}
       onPress={onPress}
+      disabled={hidden}
       accessibilityRole="button"
       accessibilityLabel="添加图片"
     >

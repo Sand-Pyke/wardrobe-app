@@ -338,6 +338,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fffaf7",
   },
+  hiddenGridTile: { opacity: 0 },
   selectedCard: { opacity: 0.64 },
   check: {
     position: "absolute",
