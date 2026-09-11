@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { ClothingCategory, DEFAULT_OUTFIT_CATEGORIES } from "../constants";
+import {
+  ClothingCategory,
+  DEFAULT_OUTFIT_CATEGORIES,
+  OutfitPart,
+} from "../constants";
 import { repository } from "../data/storage";
 import { ClothingItem, Outfit } from "../types";
 
@@ -73,6 +77,31 @@ export function useWardrobeData() {
     await persistOutfits(outfits.filter((outfit) => !ids.includes(outfit.id)));
   }
 
+  async function replaceItemImage(itemId: string, imageUri: string) {
+    const nextItems = items.map((item) =>
+      item.id === itemId
+        ? { ...item, imageUris: [imageUri, ...item.imageUris.slice(1)] }
+        : item,
+    );
+    const replacement = nextItems.find((item) => item.id === itemId);
+    if (!replacement) return;
+
+    const nextOutfits = outfits.map((outfit) => {
+      const parts = { ...outfit.parts };
+      (Object.keys(parts) as OutfitPart[]).forEach((part) => {
+        if (parts[part]?.id === itemId) parts[part] = replacement;
+      });
+      return { ...outfit, parts };
+    });
+
+    setItems(nextItems);
+    setOutfits(nextOutfits);
+    await Promise.all([
+      repository.saveItems(nextItems),
+      repository.saveOutfits(nextOutfits),
+    ]);
+  }
+
   async function saveOutfit(outfit: Outfit, isNewCategory: boolean) {
     const next = outfits.some((entry) => entry.id === outfit.id)
       ? outfits.map((entry) => (entry.id === outfit.id ? outfit : entry))
@@ -97,6 +126,7 @@ export function useWardrobeData() {
     addItems,
     deleteItems,
     deleteOutfits,
+    replaceItemImage,
     persistItems,
     persistOutfits,
     saveOutfit,

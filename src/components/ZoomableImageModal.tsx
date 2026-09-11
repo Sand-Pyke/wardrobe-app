@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Modal, StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Modal, StyleSheet } from "react-native";
 import {
   Gesture,
   GestureDetector,
@@ -11,14 +11,19 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { ImageCropModal } from "./ImageCropModal";
 
 export function ZoomableImageModal({
   uri,
   onClose,
+  onReplace,
 }: {
   uri: string | null;
   onClose: () => void;
+  onReplace?: (croppedUri: string) => void | Promise<void>;
 }) {
+  const [displayUri, setDisplayUri] = useState(uri);
+  const [cropVisible, setCropVisible] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -27,6 +32,7 @@ export function ZoomableImageModal({
   const savedY = useSharedValue(0);
 
   useEffect(() => {
+    setDisplayUri(uri);
     scale.value = 1;
     savedScale.value = 1;
     translateX.value = 0;
@@ -34,6 +40,14 @@ export function ZoomableImageModal({
     savedX.value = 0;
     savedY.value = 0;
   }, [uri, savedScale, savedX, savedY, scale, translateX, translateY]);
+
+  function requestCrop() {
+    if (!onReplace) return;
+    Alert.alert("裁剪图片", "裁剪完成后将替换当前图片。", [
+      { text: "取消", style: "cancel" },
+      { text: "开始裁剪", onPress: () => setCropVisible(true) },
+    ]);
+  }
 
   const pinch = Gesture.Pinch()
     .onUpdate((event) => {
@@ -69,6 +83,13 @@ export function ZoomableImageModal({
     .onEnd((_event, success) => {
       if (success) scheduleOnRN(onClose);
     });
+  const longPress = Gesture.LongPress()
+    .enabled(Boolean(onReplace))
+    .minDuration(550)
+    .onStart(() => {
+      scheduleOnRN(requestCrop);
+    });
+  const pressGesture = Gesture.Exclusive(longPress, tap);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -79,26 +100,40 @@ export function ZoomableImageModal({
   }));
 
   return (
-    <Modal
-      visible={Boolean(uri)}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={onClose}
-    >
-      <GestureHandlerRootView style={modalStyles.backdrop}>
-        {uri && (
-          <GestureDetector gesture={Gesture.Simultaneous(pinch, pan, tap)}>
-            <Animated.Image
-              source={{ uri }}
-              style={[modalStyles.image, animatedStyle]}
-              resizeMode="contain"
+    <>
+      <Modal
+        visible={Boolean(uri)}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={cropVisible ? () => setCropVisible(false) : onClose}
+      >
+        <GestureHandlerRootView style={modalStyles.backdrop}>
+          {cropVisible ? (
+            <ImageCropModal
+              uri={displayUri}
+              onCancel={() => setCropVisible(false)}
+              onComplete={async (croppedUri) => {
+                await onReplace?.(croppedUri);
+                setDisplayUri(croppedUri);
+                setCropVisible(false);
+              }}
             />
-          </GestureDetector>
-        )}
-      </GestureHandlerRootView>
-    </Modal>
+          ) : displayUri ? (
+            <GestureDetector
+              gesture={Gesture.Simultaneous(pinch, pan, pressGesture)}
+            >
+              <Animated.Image
+                source={{ uri: displayUri }}
+                style={[modalStyles.image, animatedStyle]}
+                resizeMode="contain"
+              />
+            </GestureDetector>
+          ) : null}
+        </GestureHandlerRootView>
+      </Modal>
+    </>
   );
 }
 

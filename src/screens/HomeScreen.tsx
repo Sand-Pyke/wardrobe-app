@@ -18,14 +18,18 @@ export function Home({
   items,
   onAdd,
   onOpenCategory,
+  onReplaceImage,
 }: {
   items: ClothingItem[];
   onAdd: (c?: ClothingCategory) => void;
   onOpenCategory: (c: ClothingCategory) => void;
+  onReplaceImage: (itemId: string, imageUri: string) => Promise<void>;
 }) {
   const { width } = useWindowDimensions();
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const previewCardWidth = (width - 60) / 3;
+  const previewItem =
+    items.find((item) => item.id === previewItemId) ?? null;
   const groups = CLOTHING_CATEGORIES.map((category) => ({
     ...category,
     entries: items
@@ -83,7 +87,7 @@ export function Home({
                   <Pressable
                     key={item.id}
                     style={[styles.homePreviewCard, { width: previewCardWidth }]}
-                    onPress={() => setPreviewUri(item.imageUris[0])}
+                    onPress={() => setPreviewItemId(item.id)}
                   >
                     <Image
                       source={{ uri: item.imageUris[0] }}
@@ -98,7 +102,7 @@ export function Home({
                   <Pressable
                     key={item.id}
                     style={styles.itemCard}
-                    onPress={() => setPreviewUri(item.imageUris[0])}
+                    onPress={() => setPreviewItemId(item.id)}
                   >
                     <Image
                       source={{ uri: item.imageUris[0] }}
@@ -112,8 +116,13 @@ export function Home({
         ))
       )}
       <ZoomableImageModal
-        uri={previewUri}
-        onClose={() => setPreviewUri(null)}
+        uri={previewItem?.imageUris[0] ?? null}
+        onClose={() => setPreviewItemId(null)}
+        onReplace={(croppedUri) =>
+          previewItem
+            ? onReplaceImage(previewItem.id, croppedUri)
+            : Promise.resolve()
+        }
       />
     </ScrollView>
   );

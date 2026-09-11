@@ -21,6 +21,7 @@ export function DetailScreen({
   outfits,
   onBack,
   onAddImages,
+  onReplaceImage,
   onDeleteItems,
   onDeleteOutfits,
   onOpenOutfit,
@@ -32,6 +33,7 @@ export function DetailScreen({
   outfits: Outfit[];
   onBack: () => void;
   onAddImages: (category: ClothingCategory, uris: string[]) => Promise<void>;
+  onReplaceImage: (itemId: string, imageUri: string) => Promise<void>;
   onDeleteItems: (ids: string[]) => Promise<void>;
   onDeleteOutfits: (ids: string[]) => Promise<void>;
   onOpenOutfit: (o: Outfit) => void;
@@ -46,7 +48,7 @@ export function DetailScreen({
   ).sort((a, b) => a.sortOrder - b.sortOrder);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [previewOutfit, setPreviewOutfit] = useState<Outfit | null>(null);
   const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
   const allSelected =
@@ -57,6 +59,8 @@ export function DetailScreen({
         { id: "add-image", isAddTile: true as const },
       ]
     : [];
+  const previewItem =
+    items.find((item) => item.id === previewItemId) ?? null;
 
   function tap(entry: ClothingItem | Outfit) {
     if (selecting)
@@ -65,7 +69,7 @@ export function DetailScreen({
           ? prev.filter((x) => x !== entry.id)
           : [...prev, entry.id],
       );
-    else if (isClothing) setPreviewUri((entry as ClothingItem).imageUris[0]);
+    else if (isClothing) setPreviewItemId(entry.id);
     else setPreviewOutfit(entry as Outfit);
   }
   function persistOrder(orderedEntries: Array<ClothingItem | Outfit>) {
@@ -327,8 +331,13 @@ export function DetailScreen({
         </ScrollView>
       )}
       <ZoomableImageModal
-        uri={previewUri}
-        onClose={() => setPreviewUri(null)}
+        uri={previewItem?.imageUris[0] ?? null}
+        onClose={() => setPreviewItemId(null)}
+        onReplace={(croppedUri) =>
+          previewItem
+            ? onReplaceImage(previewItem.id, croppedUri)
+            : Promise.resolve()
+        }
       />
       <OutfitPreviewModal
         outfit={previewOutfit}

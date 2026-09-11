@@ -44,6 +44,7 @@ export function WardrobeNavigator() {
           outfits={wardrobe.outfits}
           onBack={() => setDetail(null)}
           onAddImages={wardrobe.addItems}
+          onReplaceImage={wardrobe.replaceItemImage}
           onDeleteItems={wardrobe.deleteItems}
           onDeleteOutfits={wardrobe.deleteOutfits}
           onOpenOutfit={(outfit) => {
@@ -70,6 +71,7 @@ export function WardrobeNavigator() {
           <Home
             items={wardrobe.items}
             onAdd={openAdd}
+            onReplaceImage={wardrobe.replaceItemImage}
             onOpenCategory={(category) =>
               setDetail({ type: "clothing", category })
             }

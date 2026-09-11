@@ -10,6 +10,15 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { ClothingCategory, CLOTHING_CATEGORIES, DEFAULT_OUTFIT_CATEGORIES, OutfitPart, PART_ALLOWED, PART_LABELS } from "../constants";
 import { ClothingItem, Outfit } from "../types";
 import { styles } from "../styles";
@@ -20,6 +29,8 @@ const createId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const nameOf = (value: ClothingCategory) =>
   CLOTHING_CATEGORIES.find((entry) => entry.value === value)?.label ?? value;
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const TILT_SPRING = { damping: 15, stiffness: 135, mass: 0.72 };
 
 export function Styling({
   items,
@@ -195,109 +206,191 @@ function Mannequin({
   const image = (part: OutfitPart) => parts[part]?.imageUris[0];
   const scale = height / 500;
   const scaled = (value: number) => Math.round(value * scale);
+  const rotateX = useSharedValue(0);
+  const rotateY = useSharedValue(0);
+
+  const tiltGesture = Gesture.Pan()
+    .minDistance(7)
+    .onUpdate((event) => {
+      rotateY.value = Math.max(-9, Math.min(9, event.translationX / 16));
+      rotateX.value = Math.max(-6, Math.min(6, -event.translationY / 22));
+    })
+    .onFinalize(() => {
+      rotateX.value = withSpring(0, TILT_SPRING);
+      rotateY.value = withSpring(0, TILT_SPRING);
+    });
+
+  const stageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 900 },
+      { rotateX: `${rotateX.value}deg` },
+      { rotateY: `${rotateY.value}deg` },
+      {
+        scale: interpolate(
+          Math.abs(rotateX.value) + Math.abs(rotateY.value),
+          [0, 15],
+          [1, 1.018],
+        ),
+      },
+    ],
+  }));
+  const shadowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(Math.abs(rotateY.value), [0, 9], [0.2, 0.12]),
+    transform: [
+      { translateX: rotateY.value * 1.7 },
+      {
+        scaleX: interpolate(Math.abs(rotateY.value), [0, 9], [1, 0.86]),
+      },
+    ],
+  }));
+  const headDepthStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rotateY.value * 0.72 },
+      { translateY: -rotateX.value * 0.28 },
+    ],
+  }));
+  const neckDepthStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rotateY.value * 0.5 },
+      { translateY: -rotateX.value * 0.18 },
+    ],
+  }));
+  const torsoDepthStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rotateY.value * 0.3 },
+      { translateY: -rotateX.value * 0.1 },
+    ],
+  }));
+  const legsDepthStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rotateY.value * 0.16 },
+      { translateY: rotateX.value * 0.08 },
+    ],
+  }));
+  const feetDepthStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rotateY.value * 0.42 },
+      { translateY: rotateX.value * 0.2 },
+    ],
+  }));
+
+  const partImage = (part: OutfitPart) => {
+    const uri = image(part);
+    return uri ? (
+      <Animated.Image
+        key={uri}
+        source={{ uri }}
+        style={styles.partImage}
+        entering={FadeIn.duration(220).springify().damping(18)}
+        exiting={FadeOut.duration(130)}
+      />
+    ) : null;
+  };
+
   return (
-    <View style={[styles.mannequinWrap, { height }]}>
-      <Pressable
-        style={[
-          styles.manHead,
-          {
-            height: scaled(76),
-            width: scaled(79),
-            borderRadius: scaled(40),
-          },
-        ]}
-        onPress={() => onPress("head")}
+    <GestureDetector gesture={tiltGesture}>
+      <Animated.View
+        style={[styles.mannequinWrap, { height }, stageStyle]}
+        accessibilityLabel="可拖动查看立体搭配"
       >
-        {image("head") ? (
-          <Image source={{ uri: image("head") }} style={styles.partImage} />
-        ) : (
-          <PartHint icon="add" text="帽子" />
-        )}
-      </Pressable>
-      <Pressable
-        style={[
-          styles.manNeck,
-          {
-            height: scaled(41),
-            width: scaled(62),
-            borderRadius: scaled(11),
-            marginTop: scaled(-4),
-          },
-        ]}
-        onPress={() => onPress("neck")}
-      >
-        {image("neck") ? (
-          <Image source={{ uri: image("neck") }} style={styles.partImage} />
-        ) : (
-          <PartHint icon="add" text="围巾" />
-        )}
-      </Pressable>
-      <Pressable
-        style={[
-          styles.manTorso,
-          {
-            width: scaled(201),
-            height: scaled(165),
-            borderRadius: scaled(51),
-            marginTop: scaled(-1),
-          },
-          isDress && styles.manDress,
-          isDress && {
-            height: scaled(290),
-            borderBottomLeftRadius: scaled(80),
-            borderBottomRightRadius: scaled(80),
-          },
-        ]}
-        onPress={() => onPress("torso")}
-      >
-        {image("torso") ? (
-          <Image source={{ uri: image("torso") }} style={styles.partImage} />
-        ) : (
-          <PartHint icon="add" text="上衣 / 连衣裙" />
-        )}
-      </Pressable>
-      {!isDress && (
-        <Pressable
+        <View pointerEvents="none" style={styles.mannequinGlow} />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.mannequinGroundShadow, shadowStyle]}
+        />
+        <AnimatedPressable
           style={[
-            styles.manLegs,
+            styles.manHead,
             {
-              width: scaled(143),
-              height: scaled(128),
-              marginTop: scaled(2),
-              borderBottomLeftRadius: scaled(29),
-              borderBottomRightRadius: scaled(29),
+              height: scaled(76),
+              width: scaled(79),
+              borderRadius: scaled(40),
             },
+            headDepthStyle,
           ]}
-          onPress={() => onPress("legs")}
+          onPress={() => onPress("head")}
         >
-          {image("legs") ? (
-            <Image source={{ uri: image("legs") }} style={styles.partImage} />
-          ) : (
-            <PartHint icon="add" text="裤子 / 裙子" />
+          {partImage("head") ?? <PartHint icon="add" text="帽子" />}
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={[
+            styles.manNeck,
+            {
+              height: scaled(41),
+              width: scaled(62),
+              borderRadius: scaled(11),
+              marginTop: scaled(-4),
+            },
+            neckDepthStyle,
+          ]}
+          onPress={() => onPress("neck")}
+        >
+          {partImage("neck") ?? <PartHint icon="add" text="围巾" />}
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={[
+            styles.manTorso,
+            {
+              width: scaled(201),
+              height: scaled(165),
+              borderRadius: scaled(51),
+              marginTop: scaled(-1),
+            },
+            isDress && styles.manDress,
+            isDress && {
+              height: scaled(290),
+              borderBottomLeftRadius: scaled(80),
+              borderBottomRightRadius: scaled(80),
+            },
+            torsoDepthStyle,
+          ]}
+          onPress={() => onPress("torso")}
+        >
+          {partImage("torso") ?? (
+            <PartHint icon="add" text="上衣 / 连衣裙" />
           )}
-        </Pressable>
-      )}
-      <Pressable
-        style={[
-          styles.manFeet,
-          {
-            width: scaled(180),
-            height: scaled(59),
-            borderRadius: scaled(21),
-            marginTop: scaled(5),
-          },
-          isDress && styles.manFeetDress,
-          isDress && { marginTop: scaled(6) },
-        ]}
-        onPress={() => onPress("feet")}
-      >
-        {image("feet") ? (
-          <Image source={{ uri: image("feet") }} style={styles.partImage} />
-        ) : (
-          <PartHint icon="add" text="袜子 / 鞋子" />
+        </AnimatedPressable>
+        {!isDress && (
+          <AnimatedPressable
+            style={[
+              styles.manLegs,
+              {
+                width: scaled(143),
+                height: scaled(128),
+                marginTop: scaled(2),
+                borderBottomLeftRadius: scaled(29),
+                borderBottomRightRadius: scaled(29),
+              },
+              legsDepthStyle,
+            ]}
+            onPress={() => onPress("legs")}
+          >
+            {partImage("legs") ?? (
+              <PartHint icon="add" text="裤子 / 裙子" />
+            )}
+          </AnimatedPressable>
         )}
-      </Pressable>
-    </View>
+        <AnimatedPressable
+          style={[
+            styles.manFeet,
+            {
+              width: scaled(180),
+              height: scaled(59),
+              borderRadius: scaled(21),
+              marginTop: scaled(5),
+            },
+            isDress && styles.manFeetDress,
+            isDress && { marginTop: scaled(6) },
+            feetDepthStyle,
+          ]}
+          onPress={() => onPress("feet")}
+        >
+          {partImage("feet") ?? (
+            <PartHint icon="add" text="袜子 / 鞋子" />
+          )}
+        </AnimatedPressable>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 function PartHint({ icon, text }: { icon: "add"; text: string }) {
